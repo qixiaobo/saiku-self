@@ -51,23 +51,7 @@ var Upgrade = Backbone.View.extend({
 				if (Settings.LICENSE.licenseType != undefined && (Settings.LICENSE.licenseType != "trial" && Settings.LICENSE.licenseType != "Open Source License")) {
 					return this;
 				}
-				if (Settings.LICENSE != undefined && Settings.LICENSE.licenseType === "trial") {
-					var yourEpoch = parseFloat(Settings.LICENSE.expiration);
-					var yourDate = new Date(yourEpoch);
-					self.remainingdays = self.daydiff(new Date(), yourDate);
 
-
-					$(this.el).append("<div><div id='uphead' class='upgradeheader'>You are using a Saiku Enterprise" +
-						" Trial license, you have "+ self.remainingdays+" days remaining. <a href='http://www.meteorite.bi/saiku-pricing'>Buy licenses online.</a></div>");
-					return self;
-				}
-				else {
-					$(this.el).append("<div><div id='uphead' class='upgradeheader'>You are using Saiku Community" +
-						" Edition, please consider upgrading to <a target='_blank' href='http://meteorite.bi'>Saiku Enterprise</a>, or entering a <a href='http://meteorite.bi/products/saiku/sponsorship'>sponsorship agreement with us</a> to support development. " +
-						"<a href='http://meteorite.bi/products/saiku/community'>Or contribute by joining our community and helping other users!</a></div></div>");
-
-					return self;
-				}
 		}
 		else {
 				if(Saiku.session.get("notice") != undefined && Saiku.session.get("notice")!=null && Saiku.session.get("notice")!=""){
@@ -78,22 +62,7 @@ var Upgrade = Backbone.View.extend({
 					Settings.LICENSE.licenseType != "Open Source License")) {
 					return this;
 				}
-				if (Settings.LICENSE.licenseType === "trial") {
-					var yourEpoch = parseFloat(Settings.LICENSE.expiration);
-					var yourDate = new Date(yourEpoch);
 
-					self.remainingdays = self.daydiff(new Date(), yourDate);
-
-					$(this.el).append("<div><div id='uphead' class='upgradeheader'>You are using a Saiku Enterprise" +
-						" Trial license, you have "+ self.remainingdays+" days remaining. <a href='http://www.meteorite.bi/saiku-pricing'>Buy licenses online.</a></div>");
-					return self;
-				}
-				else {
-					$(this.el).append("<div><div id='uphead' class='upgradeheader'>You are using Saiku Community" +
-						" Edition, please consider upgrading to <a target='_blank' href='http://meteorite.bi'>Saiku Enterprise</a>, or entering a <a href='http://meteorite.bi/products/saiku/sponsorship'>sponsorship agreement with us</a> to support development. " +
-						"<a href='http://meteorite.bi/products/saiku/community'>Or contribute by joining our community and helping other users!</a></div></div>");
-					return self;
-				}
 		}
 
 
