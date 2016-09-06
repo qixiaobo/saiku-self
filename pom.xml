@@ -82,6 +82,10 @@
             <id>pentaho-snapshot</id>
             <url>http://nexus.pentaho.org/content/repositories/public-snapshots/</url>
         </repository>
+        <repository>
+            <id>pentaho-releases</id>
+            <url>http://repository.pentaho.org/artifactory/repo/</url>
+        </repository>
         <!--<repository>
             <id>atlassian2</id>
             <url>http://repository.opencastproject.org/</url>
@@ -393,7 +397,7 @@
             <dependency>
                 <groupId>org.saikuanalytics</groupId>
                 <artifactId>saiku-webapp</artifactId>
-                <version>3.1-SNAPSHOT</version>
+                <version>${project.version}</version>
                 <type>war</type>
             </dependency>
             <dependency>
@@ -419,7 +423,7 @@
             <dependency>
                 <groupId>org.olap4j</groupId>
                 <artifactId>olap4j</artifactId>
-                <version>TRUNK-SNAPSHOT</version>
+                <version>1.2.0</version>
             </dependency>
             <dependency>
                 <groupId>org.mongodb</groupId>
@@ -524,12 +528,12 @@
                 <version>1.7</version>
             </dependency>
             <dependency>
-                <groupId>batik</groupId>
+                <groupId>org.apache.xmlgraphics</groupId>
                 <artifactId>batik-transcoder</artifactId>
                 <version>1.7</version>
             </dependency>
             <dependency>
-                <groupId>batik</groupId>
+                <groupId>org.apache.xmlgraphics</groupId>
                 <artifactId>batik-ext</artifactId>
                 <version>1.7</version>
             </dependency>
@@ -983,12 +987,12 @@
             <dependency>
                 <groupId>org.apache.pdfbox</groupId>
                 <artifactId>pdfbox-app</artifactId>
-                <version>2.0.0-SNAPSHOT</version>
+                <version>2.0.0</version>
             </dependency>
             <dependency>
                 <groupId>pentaho</groupId>
                 <artifactId>cda</artifactId>
-                <version>TRUNK-SNAPSHOT</version>
+                <version>14.05.06</version>
             </dependency>
             <dependency>
                 <groupId>org.springframework.security</groupId>

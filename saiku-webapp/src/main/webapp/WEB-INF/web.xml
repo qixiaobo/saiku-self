@@ -12,7 +12,7 @@
 	</context-param>
     <context-param>
         <param-name>db.url</param-name>
-        <param-value>jdbc:h2:../../data/saiku;MODE=MySQL</param-value>
+        <param-value>jdbc:h2:jdbc:h2:/Users/qixiaobo/work/saiku/saiku-webapp/target/saiku-webapp-3.8-RC5/data/saiku;MODE=MySQL</param-value>
     </context-param>
     <context-param>
         <param-name>db.user</param-name>
@@ -28,7 +28,7 @@
     </context-param>
     <context-param>
         <param-name>foodmart.url</param-name>
-        <param-value>jdbc:h2:../../data/foodmart;MODE=MySQL</param-value>
+        <param-value>jdbc:h2:/Users/qixiaobo/work/saiku/saiku-webapp/target/saiku-webapp-3.8-RC5/data//foodmart;MODE=MySQL</param-value>
     </context-param>
     <context-param>
         <param-name>foodmart.user</param-name>
@@ -40,7 +40,7 @@
     </context-param>
     <context-param>
         <param-name>earthquakes.url</param-name>
-        <param-value>jdbc:h2:../../data/earthquakes;MODE=MySQL</param-value>
+        <param-value>jdbc:h2:/Users/qixiaobo/work/saiku/saiku-webapp/target/saiku-webapp-3.8-RC5/data//earthquakes;MODE=MySQL</param-value>
     </context-param>
     <context-param>
         <param-name>earthquakes.user</param-name>

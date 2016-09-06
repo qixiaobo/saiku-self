@@ -168,7 +168,7 @@
         </dependency>
         <!-- Batik/SVG -->
         <dependency>
-            <groupId>batik</groupId>
+            <groupId>org.apache.xmlgraphics</groupId>
             <artifactId>batik-transcoder</artifactId>
             <exclusions>
                 <exclusion>
@@ -178,7 +178,7 @@
             </exclusions>
         </dependency>
         <dependency>
-            <groupId>batik</groupId>
+           <groupId>org.apache.xmlgraphics</groupId>
             <artifactId>batik-ext</artifactId>
             <exclusions>
                 <exclusion>

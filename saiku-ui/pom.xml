@@ -288,7 +288,7 @@
 
 		</plugins>
 	</build>
-     <repositories>
+    <!-- <repositories>
         <repository>
             <id>jsdoctk1</id>
             <url>http://jsdoctk-plugin.googlecode.com/svn/repo</url>
@@ -304,5 +304,5 @@
             <id>oss.sonatype.org</id>
             <url>http://oss.sonatype.org/content/groups/public</url>
         </pluginRepository>
-    </pluginRepositories>
+    </pluginRepositories>-->
 </project>
