@@ -5,7 +5,7 @@
     <groupId>org.saikuanalytics</groupId>
     <artifactId>saiku</artifactId>
     <packaging>pom</packaging>
-    <version>3.14</version> 
+    <version>3.14</version>
     <name>Saiku Module Project</name>
     <scm>
         <developerConnection>
@@ -82,6 +82,10 @@
         <repository>
             <id>pentaho-snapshot</id>
             <url>http://nexus.pentaho.org/content/repositories/public-snapshots/</url>
+        </repository>
+        <repository>
+            <id>pentaho-releases</id>
+            <url>http://repository.pentaho.org/artifactory/repo/</url>
         </repository>
         <!--<repository>
             <id>atlassian2</id>
@@ -408,7 +412,7 @@
             <dependency>
                 <groupId>org.saikuanalytics</groupId>
                 <artifactId>saiku-webapp</artifactId>
-                <version>3.1-SNAPSHOT</version>
+                <version>${project.version}</version>
                 <type>war</type>
             </dependency>
             <dependency>
@@ -434,7 +438,7 @@
             <dependency>
                 <groupId>org.olap4j</groupId>
                 <artifactId>olap4j</artifactId>
-                <version>TRUNK-SNAPSHOT</version>
+                <version>1.2.0</version>
             </dependency>
             <dependency>
                 <groupId>org.mongodb</groupId>
@@ -1003,7 +1007,7 @@
             <dependency>
                 <groupId>pentaho</groupId>
                 <artifactId>cda</artifactId>
-                <version>TRUNK-SNAPSHOT</version>
+                <version>14.05.06</version>
             </dependency>
             <dependency>
                 <groupId>org.springframework.security</groupId>
