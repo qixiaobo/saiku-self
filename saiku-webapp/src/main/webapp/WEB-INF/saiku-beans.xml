@@ -55,14 +55,17 @@
     <bean id="repoPasswordProviderBean" class="org.saiku.service.util.security.authentication.SimplePasswordProvider">
         <constructor-arg index="0" value="${webdav.password}"/>
     </bean>
-
-
     <bean id="licenseUtilsBean" class="org.saiku.service.license.LicenseUtils" init-method="init">
         <property name="repositoryDatasourceManager" ref="repositoryDsManager" />
     </bean>
-
-
-    <bean id="h2database" class="org.saiku.database.Database" init-method="init">
+   <bean id="dataSource" class="com.mysql.jdbc.jdbc2.optional.MysqlDataSource">
+       <property name="password" value="${userdao.password}"/>
+       <property name="user" value="${userdao.username}"/>
+       <property name="url" value="${userdao.url}"/>
+       <property name="encoding" value="UTF-8"/>
+   </bean>
+    <bean id="database" class="org.saiku.database.Database" init-method="init">
+        <constructor-arg ref="dataSource"/>
         <property name="datasourceManager" ref="repositoryDsManager"/>
 
     </bean>
@@ -207,7 +210,7 @@
         <property name="repositoryDatasourceManager" ref="repositoryDsManager"/>
     </bean>
     <bean id="licenseBean" class="org.saiku.web.rest.resources.License">
-        <property name="databaseManager" ref="h2database"/>
+        <property name="databaseManager" ref="database"/>
         <property name="licenseUtils" ref="licenseUtils"/>
         <property name="userService" ref="userServiceBean"/>
     </bean>

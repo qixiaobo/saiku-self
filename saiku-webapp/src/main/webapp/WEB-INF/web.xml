@@ -11,44 +11,8 @@
 		<param-value>UTF-8</param-value>
 	</context-param>
     <context-param>
-        <param-name>db.url</param-name>
-        <param-value>jdbc:h2:jdbc:h2:/Users/qixiaobo/work/saiku/saiku-webapp/target/saiku-webapp-3.8-RC5/data/saiku;MODE=MySQL</param-value>
-    </context-param>
-    <context-param>
-        <param-name>db.user</param-name>
-        <param-value>sa</param-value>
-    </context-param>
-    <context-param>
-        <param-name>db.password</param-name>
-        <param-value></param-value>
-    </context-param>
-    <context-param>
         <param-name>db.encryptpassword</param-name>
         <param-value>true</param-value>
-    </context-param>
-    <context-param>
-        <param-name>foodmart.url</param-name>
-        <param-value>jdbc:h2:/Users/qixiaobo/work/saiku/saiku-webapp/target/saiku-webapp-3.8-RC5/data//foodmart;MODE=MySQL</param-value>
-    </context-param>
-    <context-param>
-        <param-name>foodmart.user</param-name>
-        <param-value>sa</param-value>
-    </context-param>
-    <context-param>
-        <param-name>foodmart.password</param-name>
-        <param-value></param-value>
-    </context-param>
-    <context-param>
-        <param-name>earthquakes.url</param-name>
-        <param-value>jdbc:h2:/Users/qixiaobo/work/saiku/saiku-webapp/target/saiku-webapp-3.8-RC5/data//earthquakes;MODE=MySQL</param-value>
-    </context-param>
-    <context-param>
-        <param-name>earthquakes.user</param-name>
-        <param-value>sa</param-value>
-    </context-param>
-    <context-param>
-        <param-name>earthquakes.password</param-name>
-        <param-value></param-value>
     </context-param>
     <context-param>
         <param-name>db.tcpServer</param-name>
@@ -251,25 +215,6 @@
         <url-pattern>/rmi</url-pattern>
     </servlet-mapping>-->
 
-    <servlet>
-        <servlet-name>H2Console</servlet-name>
-        <servlet-class>org.h2.server.web.WebServlet</servlet-class>
-        <!--
-        <init-param>
-            <param-name>webAllowOthers</param-name>
-            <param-value></param-value>
-        </init-param>
-        <init-param>
-            <param-name>trace</param-name>
-            <param-value></param-value>
-        </init-param>
-        -->
-        <load-on-startup>1</load-on-startup>
-    </servlet>
-    <servlet-mapping>
-        <servlet-name>H2Console</servlet-name>
-        <url-pattern>/console/*</url-pattern>
-    </servlet-mapping>
 
 	<servlet>
     	<servlet-name>jersey2</servlet-name>
