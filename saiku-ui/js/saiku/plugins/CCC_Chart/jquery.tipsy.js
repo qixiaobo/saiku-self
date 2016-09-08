@@ -98,48 +98,71 @@
             if ("in" !== this.hoverState) {
                 var title = this.getTitle();
                 if (this.enabled && title) {
-                    var $tip = this.tip();
+                    var $tip = this.tip(), tip = $tip[0];
                     $tip.find(".tipsy-inner")[this.options.html ? "html" : "text"](title);
-                    $tip[0].className = "tipsy";
+                    var className = this.options.className;
+                    tip.className = "tipsy" + (className ? " " + className : "");
                     isUpdate || $tip.remove();
-                    var parent = $tip[0].parentNode;
+                    var parent = tip.parentNode;
                     parent && 11 !== parent.nodeType || $tip.css({
                         top: 0,
                         left: 0,
                         visibility: "hidden",
                         display: "block"
                     }).appendTo(document.body);
-                    var pos = $.extend({}, this.$element.offset());
-                    if (this.$element[0].nearestViewportElement) {
-                        var rect = this.$element[0].getBoundingClientRect();
-                        pos.width = rect.width;
-                        pos.height = rect.height;
+                    var pos, $elem = this.$element, elem = $elem[0];
+                    if ("getBoundingClientRect" in elem) {
+                        var rect = elem.getBoundingClientRect(), $doc = $(document);
+                        pos = {
+                            left: rect.left + $doc.scrollLeft(),
+                            top: rect.top + $doc.scrollTop(),
+                            width: rect.right - rect.left,
+                            height: rect.bottom - rect.top
+                        };
                     } else {
-                        pos.width = this.$element[0].offsetWidth || 0;
-                        pos.height = this.$element[0].offsetHeight || 0;
+                        pos = $.extend({}, $elem.offset());
+                        pos.width = elem.offsetWidth;
+                        pos.height = elem.offsetHeight;
                     }
-                    var tipOffset = this.options.offset, useCorners = this.options.useCorners, showArrow = this.options.arrowVisible, actualWidth = $tip[0].offsetWidth, actualHeight = $tip[0].offsetHeight;
+                    var actualWidth, actualHeight, tipOffset = this.options.offset, useCorners = this.options.useCorners, showArrow = this.options.arrowVisible;
+                    if ("getBoundingClientRect" in tip) {
+                        var tipRect = tip.getBoundingClientRect();
+                        actualWidth = tipRect.right - tipRect.left;
+                        actualHeight = tipRect.bottom - tipRect.top;
+                    } else {
+                        actualWidth = tip.offsetWidth;
+                        actualHeight = tip.offsetHeight;
+                    }
                     showArrow || (tipOffset -= 4);
-                    var gravity = "function" == typeof this.options.gravity ? this.options.gravity.call(this.$element[0], {
+                    var gravity = this.options.gravity;
+                    "function" == typeof gravity && (gravity = gravity.call(elem, {
                         width: actualWidth,
                         height: actualHeight
-                    }, calcPosition) : this.options.gravity, tp = calcPosition(gravity);
-                    $tip.css(tp).addClass("tipsy-" + gravity + (useCorners && gravity.length > 1 ? gravity.charAt(1) : ""));
+                    }, calcPosition));
+                    var tp = calcPosition(gravity);
+                    $tip.addClass("tipsy-" + gravity + (useCorners && gravity.length > 1 ? gravity.charAt(1) : ""));
+                    var cssNow, cssAnim, anim = this.options.animate;
+                    isUpdate && anim > 0 ? cssAnim = tp : cssNow = tp;
                     if (showArrow) {
                         var hideArrow = useCorners && 2 === gravity.length;
                         $tip.find(".tipsy-arrow")[hideArrow ? "hide" : "show"]();
                     }
-                    var doFadeIn = this.options.fade && (!isUpdate || !this._prevGravity || this._prevGravity !== gravity);
-                    doFadeIn ? $tip.stop().css({
-                        opacity: 0,
-                        display: "block",
-                        visibility: "visible"
-                    }).animate({
-                        opacity: this.options.opacity
-                    }) : $tip.css({
+                    var doFadeIn = this.options.fade && !isUpdate;
+                    if (doFadeIn) {
+                        cssNow = $.extend(cssNow || {}, {
+                            opacity: 0,
+                            display: "block",
+                            visibility: "visible"
+                        });
+                        cssAnim = $.extend(cssAnim || {}, {
+                            opacity: this.options.opacity
+                        });
+                    } else cssNow = $.extend(cssNow || {}, {
                         visibility: "visible",
                         opacity: this.options.opacity
                     });
+                    cssNow && $tip.css(cssNow);
+                    cssAnim && $tip.stop().animate(cssAnim, anim > 0 ? anim : 400);
                     this._prevGravity = gravity;
                     this.hoverState = null;
                 } else {
@@ -167,7 +190,8 @@
         },
         tip: function() {
             if (!this.$tip) {
-                this.$tip = $('<div class="tipsy"></div>');
+                var className = this.options.className;
+                this.$tip = $('<div class="tipsy' + (className ? " " + className : "") + '"></div>');
                 this.$tip.html(this.options.arrowVisible ? '<div class="tipsy-arrow"></div><div class="tipsy-inner"/></div>' : '<div class="tipsy-inner"/></div>');
                 this.$tip.remove();
             }
@@ -222,6 +246,7 @@
     $.fn.tipsy.defaults = {
         delayIn: 0,
         delayOut: 0,
+        animate: 0,
         fade: !1,
         fallback: "",
         gravity: "n",
@@ -232,7 +257,8 @@
         title: "title",
         trigger: "hover",
         useCorners: !1,
-        arrowVisible: null
+        arrowVisible: null,
+        className: ""
     };
     $.fn.tipsy.elementOptions = function(ele, options) {
         return $.metadata ? $.extend({}, options, $(ele).metadata()) : options;

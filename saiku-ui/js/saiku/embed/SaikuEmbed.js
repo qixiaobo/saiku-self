@@ -122,7 +122,7 @@ var SaikuClient = (function() {
 	 * 		}
 	 */
 	var _settings = {
-		server: '/saiku',
+		server: '/',
 		path: '/rest/saiku/embed',
 		user: 'admin',
 		password: 'admin',
@@ -289,8 +289,8 @@ var SaikuClient = (function() {
 			},
 			success: function(data, textStatus, jqXHR) {
 				if (data.query && data.height > 0 && data.width > 0) {
-					var renderMode = data.query.properties['saiku.ui.render.mode'] ? data.query.properties['saiku.ui.render.mode'] : options.render;
-					var mode = data.query.properties['saiku.ui.render.type'] ? data.query.properties['saiku.ui.render.type'] : options.mode;
+					var renderMode = options.render ? options.render : data.query.properties['saiku.ui.render.mode'] ;
+					var mode = options.mode ? options.mode : data.query.properties['saiku.ui.render.type'];
 					var chartDefinition = data.query.properties['saiku.ui.chart.options'] ? data.query.properties['saiku.ui.chart.options'].chartDefinition : '';
 					var mapDefinition = data.query.properties['saiku.ui.map.options'] ? data.query.properties['saiku.ui.map.options'] : '';
 					var dataSchema = data.query.cube.uniqueName;
