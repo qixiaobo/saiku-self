@@ -54,14 +54,14 @@
 <script type="text/javascript">
 
 var myClient = new SaikuClient({
-    server: "/saiku",
+    server: "",
     path: "/rest/saiku/embed",
     user: "admin",
     password: "admin"
 });
 
 myClient.execute({
-	file: "Examples/pie.saiku",
+	file: "/homes/aaa.saiku",
 	htmlObject: "#saiku",
 	render: "table",
 	params: {
@@ -69,10 +69,10 @@ myClient.execute({
 	}
 });
 myClient.execute({
-	file: "Examples/Heatgrid.saiku",
+	file: "/homes/bbb.saiku",
 	htmlObject: "#saiku2",
 	render: "chart",
-	mode: "heatgrid",
+	mode: "line",
 	chartDefinition: {
 		width: 900,
 		colors: ['grey','red','blue'],

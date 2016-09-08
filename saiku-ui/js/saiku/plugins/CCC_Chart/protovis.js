@@ -26,7 +26,7 @@
 
 /*! Copyright 2010 Stanford Visualization Group, Mike Bostock, BSD license. */
 
-/*! 539b7b4908c29303d90a687962d250d90abf0def */
+/*! ea0cd9152f9ab19ab49937b43fd486dcbe586b85 */
 
 /*
  * TERMS OF USE - EASING EQUATIONS
@@ -62,6 +62,326 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
+
+function genNumberTicks(N, min, max, options) {
+    var ticks, span = max - min;
+    if (span && isFinite(span)) {
+        var precision = pv.parseNumNonNeg(pv.get(options, "precision", 0)), precisionMin = pv.parseNumNonNeg(pv.get(options, "precisionMin", 0)), precisionMax = pv.parseNumNonNeg(pv.get(options, "precisionMax", 1/0)), roundInside = pv.get(options, "roundInside", !0);
+        isFinite(precision) || (precision = 0);
+        isFinite(precisionMin) || (precisionMin = 0);
+        precisionMax || (precisionMax = 1/0);
+        var exponentMin = pv.get(options, "numberExponentMin"), exponentMax = pv.get(options, "numberExponentMax");
+        null != exponentMin && isFinite(exponentMin) && (precisionMin = Math.max(precisionMin, Math.pow(10, Math.floor(exponentMin))));
+        null != exponentMax && isFinite(exponentMax) && (precisionMax = Math.min(precisionMax, 5 * Math.pow(10, Math.floor(exponentMax))));
+        if (roundInside) {
+            precisionMin > span && (precisionMin = span);
+            precisionMax > span && (precisionMax = span);
+        }
+        precisionMin > precisionMax && (precisionMax = precisionMin);
+        precision ? precision = Math.max(Math.min(precision, precisionMax), precisionMin) : precisionMin === precisionMax && (precision = precisionMin);
+        var result, precMin, precMax, NObtained, overflow = 0, fixed = !!precision;
+        if (fixed) {
+            result = {
+                base: Math.abs(precision),
+                mult: 1,
+                value: 1
+            };
+            result.value = result.base;
+        } else {
+            var NMax = pv.parseNumNonNeg(pv.get(options, "tickCountMax", 1/0));
+            1 > NMax && (NMax = 1);
+            null == N ? N = Math.min(10, NMax) : isFinite(N) ? N > NMax && (N = NMax) : N = isFinite(NMax) ? NMax : 10;
+            result = {
+                base: isFinite(N) ? pv.logFloor(span / N, 10) : 0,
+                mult: 1,
+                value: 1
+            };
+            result.value = result.base;
+            if (precisionMin > 0) {
+                precMin = readNumberPrecision(precisionMin, !0);
+                if (result.value < precMin.value) {
+                    numberCopyResult(result, precMin);
+                    overflow = -1;
+                }
+            }
+            if (isFinite(precisionMax)) {
+                precMax = readNumberPrecision(precisionMax, !1);
+                if (precMin && precMax.value <= precMin.value) precMax = null; else if (precMax.value < result.value) {
+                    numberCopyResult(result, precMax);
+                    overflow = 1;
+                }
+            }
+            if (1 !== overflow && isFinite(N) && result.mult < 10) {
+                NObtained = span / result.base;
+                if (NObtained > N) {
+                    var err = N / NObtained;
+                    .15 >= err ? result.mult = 10 : result.mult < 5 && (.35 >= err ? result.mult = 5 : result.mult < 2 && .75 >= err && (result.mult = 2));
+                    if (result.mult > 1) {
+                        result.value = result.base * result.mult;
+                        if (precMin && result.value < precMin.value) {
+                            numberCopyResult(result, precMin);
+                            overflow = -1;
+                        } else if (precMax && precMax.value < result.value) {
+                            numberCopyResult(result, precMax);
+                            overflow = 1;
+                        } else if (10 === result.mult) {
+                            result.base *= 10;
+                            result.mult = 1;
+                        }
+                    }
+                }
+            }
+        }
+        for (var resultPrev; ;) {
+            var step = result.value, start = step * Math[roundInside ? "ceil" : "floor"](min / step), end = step * Math[roundInside ? "floor" : "ceil"](max / step);
+            if (resultPrev && (start > end || precMax && end - start > precMax.value)) {
+                result = resultPrev;
+                break;
+            }
+            var exponent = Math.floor(pv.log(step, 10) + 1e-10);
+            result.decPlaces = Math.max(0, -exponent);
+            result.ticks = pv.range(start, end + step, step);
+            if (fixed || overflow > 0 || result.ticks.length <= NMax) break;
+            if (resultPrev && resultPrev.ticks.length <= result.ticks.length) {
+                result = resultPrev;
+                break;
+            }
+            result = numberResultAbove(resultPrev = result);
+        }
+        ticks = result.ticks;
+        ticks.step = result.value;
+        ticks.base = result.base;
+        ticks.mult = result.mult;
+        ticks.decPlaces = result.decPlaces;
+        ticks.format = pv.Format.number().fractionDigits(result.decPlaces);
+    } else {
+        ticks = [ +min ];
+        ticks.step = ticks.base = ticks.mult = 1;
+        ticks.decPlaces = 0;
+        ticks.format = pv.Format.number().fractionDigits(0);
+    }
+    return ticks;
+}
+
+function numberCopyResult(to, from) {
+    to.base = from.base;
+    to.mult = from.mult;
+    to.value = from.value;
+    return to;
+}
+
+function numberResultAbove(result) {
+    var out = numberCopyResult({}, result);
+    switch (out.mult) {
+      case 5:
+        out.mult = 1;
+        out.base *= 10;
+        break;
+
+      case 2:
+        out.mult = 5;
+        break;
+
+      case 1:
+        out.mult = 2;
+    }
+    out.value = out.base * out.mult;
+    return out;
+}
+
+function readNumberPrecision(precision, isMin) {
+    0 > precision && (precision = -precision);
+    var base = pv.logFloor(precision, 10), mult = precision / base;
+    isMin ? mult > 5 ? (mult = 1, base *= 10) : mult = mult > 2 ? 5 : mult > 1 ? 2 : 1 : mult = mult >= 5 ? 5 : mult >= 2 ? 2 : 1;
+    return {
+        base: base,
+        mult: mult,
+        value: base * mult,
+        source: precision
+    };
+}
+
+function newDate(x) {
+    return new Date(x);
+}
+
+function genDateTicks(N, min, max, precision, format, weekStart, options) {
+    var ticks, span = max - min;
+    if (span && isFinite(span)) {
+        precision = parseDatePrecision(pv.get(options, "precision"), precision);
+        var precisionMin = parseDatePrecision(pv.get(options, "precisionMin"), 0), precisionMax = parseDatePrecision(pv.get(options, "precisionMax"), 1/0);
+        precisionMin > precisionMax && (precisionMax = precisionMin);
+        precision ? precision = Math.max(Math.min(precision, precisionMax), precisionMin) : precisionMin === precisionMax && (precision = precisionMin);
+        var NMax = pv.parseNumNonNeg(pv.get(options, "tickCountMax", 1/0));
+        2 > NMax && (NMax = 2);
+        N = Math.min(null == N ? 5 : N, NMax);
+        for (var precResultPrev, keyArgs = {
+            weekStart: weekStart,
+            roundInside: pv.get(options, "roundInside", 1)
+        }, precResult = chooseDatePrecision(N, span, precision, precisionMin, precisionMax, keyArgs), fixed = precResult.fixed, overflow = precResult.overflow; ;) {
+            precResult.ticks = ticks = precResult.comp.ticks(min, max, precResult.mult, keyArgs);
+            if (precResultPrev && precResult.precMax && ticks[ticks.length - 1] - ticks[0] > precResult.precMax.value) {
+                precResult = precResultPrev;
+                break;
+            }
+            if (fixed || overflow > 0 || precResult.ticks.length <= NMax) break;
+            if (precResultPrev && precResultPrev.ticks.length <= precResult.ticks.length) {
+                precResult = precResultPrev;
+                break;
+            }
+            precResultPrev = precResult;
+            precResult = precResult.comp.resultAbove(precResult.mult);
+        }
+        ticks = precResult.ticks;
+        ticks.step = precResult.value;
+        ticks.base = precResult.comp.value;
+        ticks.mult = precResult.mult;
+        ticks.format = parseTickDateFormat(format) || precResult.comp.format;
+    } else {
+        ticks = [ newDate(min) ];
+        ticks.step = ticks.base = ticks.mult = 1;
+        ticks.format = pv.Format.date("%x");
+    }
+    return ticks;
+}
+
+function chooseDatePrecision(N, span, precision, precisionMin, precisionMax, options) {
+    var dateComp, castResult, precMin, precMax, overflow = 0, mult = 1, fixed = !!precision;
+    if (precision) {
+        castResult = readDatePrecision(precision, !1);
+        if (castResult.value !== precision) dateComp = castResult.comp.withPrecision(precision); else {
+            dateComp = castResult.comp;
+            mult = castResult.mult;
+        }
+    } else {
+        if (isFinite(N)) {
+            dateComp = getGreatestLessOrEqualDateComp(span, N);
+            mult = dateComp.multiple(span / dateComp.value, options);
+        } else {
+            dateComp = lowestPrecisionValueDateComp();
+            mult = 1;
+        }
+        precision = dateComp.value * mult;
+        precisionMin > precision && (precMin = readDatePrecision(precisionMin, !0));
+        precision > precisionMax && (precMax = readDatePrecision(precisionMax, !1));
+        if (precMin && precision < precMin.value) {
+            dateComp = precMin.comp;
+            mult = precMin.mult;
+            overflow = -1;
+        } else if (precMax && precisionMin < precMax.value && precMax.value < precision) {
+            dateComp = precMax.comp;
+            mult = precMax.mult;
+            overflow = 1;
+        }
+    }
+    return {
+        comp: dateComp,
+        mult: mult,
+        value: dateComp.value * mult,
+        source: precision,
+        overflow: overflow,
+        fixed: fixed,
+        precMin: precMin,
+        precMax: precMax
+    };
+}
+
+function readDatePrecision(precision, ceil) {
+    return null == precision || 0 >= precision || !isFinite(precision) ? null : (ceil ? lowestPrecisionValueDateComp : highestPrecisionValueDateComp)().castValue(precision, ceil);
+}
+
+function DateComponent(value, prev, keyArgs) {
+    this.value = value;
+    this.mult = keyArgs.mult || 1;
+    this.base = 1 === this.mult ? this.value : Math.floor(this.value / this.mult);
+    dateCompCopyArgs.forEach(function(p) {
+        null != keyArgs[p] && (this[p] = keyArgs[p]);
+    }, this);
+    keyArgs.floor && (this.floorLocal = keyArgs.floor);
+    this.format = parseTickDateFormat(keyArgs.format);
+    this.first = pv.functor(keyArgs.first || 0);
+    this.prev = prev;
+    this.next = null;
+    prev && (prev.next = this);
+}
+
+function parseTickDateFormat(format) {
+    return null == format ? null : "function" == typeof format ? format : pv.Format.date(format);
+}
+
+function firstWeekStartOfMonth(date, dateTickWeekStart) {
+    var d = new Date(date.getFullYear(), date.getMonth(), 1), wd = dateTickWeekStart - d.getDay();
+    if (wd) {
+        0 > wd && (wd += 7);
+        d.setDate(d.getDate() + wd);
+    }
+    return d;
+}
+
+function parseDatePrecision(value, dv) {
+    if ("string" == typeof value) {
+        var n = +value;
+        if (isNaN(n)) {
+            if (value) {
+                var m = /^(\d*)([a-zA-Z]+)$/.exec(value);
+                if (m) {
+                    value = parseDateInterval(m[2]);
+                    value && (value *= +m[1] || 1);
+                }
+            }
+        } else value = n;
+    }
+    ("number" != typeof value || 0 > value) && (value = null != dv ? dv : 0);
+    return value;
+}
+
+function parseDateInterval(s) {
+    switch (s) {
+      case "y":
+        return 31536e6;
+
+      case "m":
+        return 2592e6;
+
+      case "w":
+        return 6048e5;
+
+      case "d":
+        return 864e5;
+
+      case "h":
+        return 36e5;
+
+      case "M":
+        return 6e4;
+
+      case "s":
+        return 1e3;
+
+      case "ms":
+        return 1;
+    }
+}
+
+function defDateComp(value, keyArgs) {
+    var prev = highestPrecisionValueDateComp();
+    _dateComps.push(new DateComponent(value, prev, keyArgs));
+}
+
+function lowestPrecisionValueDateComp() {
+    return _dateComps[0];
+}
+
+function highestPrecisionValueDateComp() {
+    return _dateComps.length ? _dateComps[_dateComps.length - 1] : null;
+}
+
+function getGreatestLessOrEqualDateComp(length, N) {
+    null == N && (N = 1);
+    var comp, prev = highestPrecisionValueDateComp();
+    do comp = prev; while (length < N * comp.value && (prev = comp.prev));
+    return comp;
+}
 
 Array.prototype.map || (Array.prototype.map = function(f, o) {
     for (var n = this.length, result = new Array(n), i = 0; n > i; i++) i in this && (result[i] = f.call(o, this[i], i, this));
@@ -299,6 +619,9 @@ pv.parent = function() {
             return v;
         };
     };
+    pv.stringLowerCase = function(s) {
+        return String(s).toLowerCase();
+    };
     pv.get = function(o, p, dv) {
         var v;
         return o && null != (v = o[p]) ? v : dv;
@@ -307,6 +630,32 @@ pv.parent = function() {
     pv.lazyArrayOwn = function(o, p) {
         var v;
         return o && hasOwn.call(o, p) && (v = o[p]) ? v : o[p] = [];
+    };
+    pv.parseNumNonNeg = function(v, dv) {
+        null != v && ("string" == typeof v ? v = +v : "number" != typeof v && (v = null));
+        return null == v || isNaN(v) || 0 > v ? null == dv ? 0 : dv : v;
+    };
+    var epsilon = pv.epsilon = 1e-6;
+    pv.floatLess = function(a, b) {
+        return !pv.floatEqual(a, b) && b > a;
+    };
+    pv.floatLessOrEqual = function(a, b) {
+        return b > a || pv.floatEqual(a, b);
+    };
+    pv.floatGreater = function(a, b) {
+        return !pv.floatEqual(a, b) && a > b;
+    };
+    pv.floatEqual = function(a, b) {
+        return Math.abs(b - a) < epsilon;
+    };
+    pv.floatZero = function(value) {
+        return Math.abs(value) < epsilon;
+    };
+    pv.floatBelongsOpen = function(min, value, max) {
+        return pv.floatLess(min, value) && pv.floatLess(value, max);
+    };
+    pv.floatBelongsClosed = function(min, value, max) {
+        return pv.floatLessOrEqual(min, value) && pv.floatLessOrEqual(value, max);
     };
 }();
 
@@ -1595,16 +1944,13 @@ pv.Scale.common = {
 };
 
 pv.Scale.quantitative = function() {
-    function newDate(x) {
-        return new Date(x);
-    }
     function scale(x) {
         var j = pv.search(d, x);
         0 > j && (j = -j - 2);
         j = Math.max(0, Math.min(i.length - 1, j));
         return i[j]((f(x) - l[j]) / (l[j + 1] - l[j]));
     }
-    var dateTickFormat, dateTickPrecision, usedDateTickPrecision, usedNumberExponent, d = [ 0, 1 ], l = [ 0, 1 ], r = [ 0, 1 ], i = [ pv.identity ], type = Number, n = !1, f = pv.identity, g = pv.identity, tickFormat = String, tickFormatter = null;
+    var dateTickFormat, dateTickPrecision, lastTicks, d = [ 0, 1 ], l = [ 0, 1 ], r = [ 0, 1 ], i = [ pv.identity ], type = Number, n = !1, f = pv.identity, g = pv.identity, tickFormatter = null, dateTickWeekStart = 0;
     scale.transform = function(forward, inverse) {
         f = function(x) {
             return n ? -forward(-x) : forward(x);
@@ -1651,192 +1997,10 @@ pv.Scale.quantitative = function() {
         j = Math.max(0, Math.min(i.length - 1, j));
         return type(g(l[j] + (y - r[j]) / (r[j + 1] - r[j]) * (l[j + 1] - l[j])));
     };
-    scale.ticks = function(m, options) {
-        function floor(d, p) {
-            switch (p) {
-              case 31536e6:
-                d.setMonth(0);
-
-              case 2592e6:
-                d.setDate(1);
-
-              case 6048e5:
-                6048e5 == p && d.setDate(d.getDate() - d.getDay());
-
-              case 864e5:
-                d.setHours(0);
-
-              case 36e5:
-                d.setMinutes(0);
-
-              case 6e4:
-                d.setSeconds(0);
-
-              case 1e3:
-                d.setMilliseconds(0);
-            }
-        }
-        var start = d[0], end = d[d.length - 1], reverse = start > end, min = reverse ? end : start, max = reverse ? start : end, span = max - min;
-        if (!span || !isFinite(span)) {
-            type == newDate && (tickFormat = pv.Format.date("%x"));
-            return [ type(min) ];
-        }
-        var roundInside = pv.get(options, "roundInside", !0);
-        if (type == newDate) {
-            var precision, format, increment, nn = null == m ? 5 : m, step = 1;
-            if (span >= 31536e6 * nn) {
-                precision = 31536e6;
-                format = "%Y";
-                increment = function(d) {
-                    d.setFullYear(d.getFullYear() + step);
-                };
-            } else if (span >= 2592e6 * nn) {
-                precision = 2592e6;
-                format = "%m/%Y";
-                increment = function(d) {
-                    d.setMonth(d.getMonth() + step);
-                };
-            } else if (span >= 6048e5 * nn) {
-                precision = 6048e5;
-                format = "%m/%d";
-                increment = function(d) {
-                    d.setDate(d.getDate() + 7 * step);
-                };
-            } else if (span >= 864e5 * nn) {
-                precision = 864e5;
-                format = "%m/%d";
-                increment = function(d) {
-                    d.setDate(d.getDate() + step);
-                };
-            } else if (span >= 36e5 * nn) {
-                precision = 36e5;
-                format = "%I:%M %p";
-                increment = function(d) {
-                    d.setHours(d.getHours() + step);
-                };
-            } else if (span >= 6e4 * nn) {
-                precision = 6e4;
-                format = "%I:%M %p";
-                increment = function(d) {
-                    d.setMinutes(d.getMinutes() + step);
-                };
-            } else if (span >= 1e3 * nn) {
-                precision = 1e3;
-                format = "%I:%M:%S";
-                increment = function(d) {
-                    d.setSeconds(d.getSeconds() + step);
-                };
-            } else {
-                precision = 1;
-                format = "%S.%Qs";
-                increment = function(d) {
-                    d.setTime(d.getTime() + step);
-                };
-            }
-            precision = dateTickPrecision ? dateTickPrecision : precision;
-            format = dateTickFormat ? dateTickFormat : format;
-            usedDateTickPrecision = precision;
-            tickFormat = pv.Format.date(format);
-            var date = new Date(min), dates = [];
-            floor(date, precision);
-            var n = span / precision;
-            if (n > 10) switch (precision) {
-              case 36e5:
-                step = n > 20 ? 6 : 3;
-                date.setHours(Math.floor(date.getHours() / step) * step);
-                break;
-
-              case 2592e6:
-                step = n > 24 ? 3 : n > 12 ? 2 : 1;
-                date.setMonth(Math.floor(date.getMonth() / step) * step);
-                break;
-
-              case 6048e5:
-                step = n > 15 ? 3 : n > 10 ? 2 : 1;
-                date.setDate(1 + 7 * Math.floor(date.getDate() / (7 * step)) * step);
-                break;
-
-              case 864e5:
-                step = n >= 30 ? 5 : n >= 15 ? 3 : 2;
-                date.setDate(1 + Math.floor(date.getDate() / step) * step);
-                break;
-
-              case 6e4:
-                step = n > 30 ? 15 : n > 15 ? 10 : 5;
-                date.setMinutes(Math.floor(date.getMinutes() / step) * step);
-                break;
-
-              case 1e3:
-                step = n > 90 ? 15 : n > 60 ? 10 : 5;
-                date.setSeconds(Math.floor(date.getSeconds() / step) * step);
-                break;
-
-              case 1:
-                step = n > 1e3 ? 250 : n > 200 ? 100 : n > 100 ? 50 : n > 50 ? 25 : 5;
-                date.setMilliseconds(Math.floor(date.getMilliseconds() / step) * step);
-                break;
-
-              default:
-                step = pv.logCeil(n / 15, 10);
-                2 > n / step ? step /= 5 : 5 > n / step && (step /= 2);
-                date.setFullYear(Math.floor(date.getFullYear() / step) * step);
-            }
-            if (dateTickPrecision) {
-                step = 1;
-                increment = function(d) {
-                    d.setSeconds(d.getSeconds() + step * dateTickPrecision / 1e3);
-                };
-            }
-            if (roundInside) for (;;) {
-                increment(date);
-                if (date > max) break;
-                dates.push(new Date(date));
-            } else {
-                max = new Date(max);
-                increment(max);
-                do {
-                    dates.push(new Date(date));
-                    increment(date);
-                } while (max >= date);
-            }
-            return reverse ? dates.reverse() : dates;
-        }
-        null == m && (m = 10);
-        var exponentMin = pv.get(options, "numberExponentMin", -1/0), exponentMax = pv.get(options, "numberExponentMax", +1/0), exponent = Math.floor(pv.log(span / m, 10)), overflow = !1;
-        if (exponent > exponentMax) {
-            exponent = exponentMax;
-            overflow = !0;
-        } else if (exponentMin > exponent) {
-            exponent = exponentMin;
-            overflow = !0;
-        }
-        step = Math.pow(10, exponent);
-        var mObtained = span / step, err = m / mObtained;
-        if (.15 >= err && exponentMax - 1 > exponent) {
-            step *= 10;
-            mObtained /= 10;
-        } else if (.35 >= err) {
-            step *= 5;
-            mObtained /= 5;
-        } else if (.75 >= err) {
-            step *= 2;
-            mObtained /= 2;
-        }
-        exponent = Math.floor(pv.log(step, 10) + 1e-10);
-        start = step * Math[roundInside ? "ceil" : "floor"](min / step);
-        end = step * Math[roundInside ? "floor" : "ceil"](max / step);
-        usedNumberExponent = Math.max(0, -exponent);
-        tickFormat = pv.Format.number().fractionDigits(usedNumberExponent);
-        2 === m && mObtained >= 2 && (step = end - start);
-        var ticks = pv.range(start, end + step, step);
-        reverse && ticks.reverse();
-        ticks.roundInside = roundInside;
-        ticks.step = step;
-        ticks.exponent = exponent;
-        ticks.exponentOverflow = overflow;
-        ticks.exponentMin = exponentMin;
-        ticks.exponentMax = exponentMax;
-        return ticks;
+    scale.ticks = function(N, options) {
+        var start = d[0], end = d[d.length - 1], reverse = start > end, min = reverse ? end : start, max = reverse ? start : end;
+        lastTicks = type === newDate ? genDateTicks(N, min, max, dateTickPrecision, dateTickFormat, dateTickWeekStart, options) : genNumberTicks(N, min, max, options);
+        return reverse ? lastTicks.reverse() : lastTicks;
     };
     scale.dateTickFormat = function() {
         if (arguments.length) {
@@ -1847,10 +2011,55 @@ pv.Scale.quantitative = function() {
     };
     scale.dateTickPrecision = function() {
         if (arguments.length) {
-            dateTickPrecision = arguments[0];
+            dateTickPrecision = parseDatePrecision(arguments[0], 0);
             return this;
         }
         return dateTickPrecision;
+    };
+    scale.dateTickWeekStart = function(weekStart) {
+        if (arguments.length) {
+            switch (("" + weekStart).toLowerCase()) {
+              case "0":
+              case "sunday":
+                dateTickWeekStart = 0;
+                break;
+
+              case "1":
+              case "monday":
+                dateTickWeekStart = 1;
+                break;
+
+              case "2":
+              case "tuesday":
+                dateTickWeekStart = 2;
+                break;
+
+              case "3":
+              case "wednesday":
+                dateTickWeekStart = 3;
+                break;
+
+              case "4":
+              case "thursday":
+                dateTickWeekStart = 4;
+                break;
+
+              case "5":
+              case "friday":
+                dateTickWeekStart = 5;
+                break;
+
+              case "6":
+              case "saturday":
+                dateTickWeekStart = 6;
+                break;
+
+              default:
+                dateTickWeekStart = 0;
+            }
+            return this;
+        }
+        return dateTickWeekStart;
     };
     scale.tickFormatter = function(f) {
         if (arguments.length) {
@@ -1859,10 +2068,19 @@ pv.Scale.quantitative = function() {
         }
         return tickFormatter;
     };
-    scale.tickFormat = function(t) {
+    scale.tickFormat = function(t, index) {
         var text;
-        text = tickFormatter ? tickFormatter(t, type !== Number ? usedDateTickPrecision : usedNumberExponent) : tickFormat(t);
-        return null == text ? "" : "" + text;
+        if (tickFormatter) {
+            if (!lastTicks) {
+                lastTicks = [];
+                lastTicks.step = lastTicks.base = lastTicks.mult = 1;
+                lastTicks.decPlaces = 0;
+                lastTicks.format = String;
+            }
+            var precision = type !== Number ? lastTicks.step : lastTicks.decPlaces;
+            text = tickFormatter.call(lastTicks, t, precision, null != index ? index : -1);
+        } else text = lastTicks ? lastTicks.format(t) : String(t);
+        return text;
     };
     scale.nice = function() {
         if (2 != d.length) return this;
@@ -1878,6 +2096,238 @@ pv.Scale.quantitative = function() {
     scale.domain.apply(scale, arguments);
     return scale;
 };
+
+var dateCompCopyArgs = [ "get", "set", "multiple", "multiples", "thresholds", "closeds", "castValue" ];
+
+DateComponent.prototype.increment = function(d, n) {
+    null == n && (n = 1);
+    1 !== this.mult && (n *= this.mult);
+    this.set(d, this.get(d) + n);
+};
+
+DateComponent.prototype.get = function(d) {
+    return d.getMilliseconds();
+};
+
+DateComponent.prototype.set = function(d, v) {
+    d.setMilliseconds(v);
+};
+
+DateComponent.prototype.floorLocal = function() {};
+
+DateComponent.prototype.floor = function(d, options) {
+    var skip = 0;
+    if (1 !== this.mult) {
+        this.floorLocal(d, options);
+        skip = this.base;
+    }
+    for (var comp = this.prev; comp; ) {
+        1 === comp.mult && comp.value !== skip && comp.clear(d, options);
+        comp = comp.prev;
+    }
+};
+
+DateComponent.prototype.floorMultiple = function(d, n, options) {
+    var first = this.first(d, options), delta = this.get(d) - first;
+    if (delta) {
+        var M = n * this.mult, offset = Math.floor(delta / M) * M;
+        this.set(d, first + offset);
+    }
+};
+
+DateComponent.prototype.clear = function(d, options) {
+    this.set(d, this.first(d, options));
+};
+
+DateComponent.prototype.multiple = function(N) {
+    for (var ms = this.multiples, ts = this.thresholds, cl = this.closeds, L = ms.length, i = -1; ++i < L; ) if (cl[i] ? N <= ts[i] : N < ts[i]) return ms[i];
+    throw new Error("Invalid configuration.");
+};
+
+DateComponent.prototype.resultAbove = function(mult) {
+    return this.castValue(this.value * mult + .1, !0);
+};
+
+DateComponent.prototype.castValue = function(value, ceil) {
+    var ms = this.multiples;
+    if (!ms) return this._castValueResult(1, value, 1);
+    var i, m = value / this.value, L = ms.length;
+    if (ceil) {
+        i = -1;
+        for (;++i < L; ) if (m <= ms[i]) return this._castValueResult(ms[i], value, 0);
+        return this.next ? this.next.castValue(value, ceil) : this._castValueResult(ms[L - 1], value, 1);
+    }
+    i = L;
+    for (;i--; ) if (ms[i] <= m) return this._castValueResult(ms[i], value, 0);
+    return this.prev ? this.prev.castValue(value, ceil) : this._castValueResult(ms[0], value, -1);
+};
+
+DateComponent.prototype._castValueResult = function(mult, value, overflow) {
+    return {
+        comp: this,
+        mult: mult,
+        value: this.value * mult,
+        source: value,
+        overflow: overflow
+    };
+};
+
+DateComponent.prototype.withPrecision = function(value) {
+    var comp = this;
+    this.value !== value && (comp = new DateComponent(value, null, {
+        mult: value,
+        format: this.format
+    }));
+    return comp;
+};
+
+DateComponent.prototype.ticks = function(min, max, mult, options) {
+    var ticks = [], tick = new Date(min);
+    this.floor(tick, options);
+    mult > 1 && this.floorMultiple(tick, mult, options);
+    if (pv.get(options, "roundInside", 1)) {
+        min !== +tick && this.increment(tick, mult);
+        do {
+            ticks.push(new Date(tick));
+            this.increment(tick, mult);
+        } while (max >= tick);
+    } else {
+        ticks.push(new Date(tick));
+        do {
+            this.increment(tick, mult);
+            ticks.push(new Date(tick));
+        } while (max > tick);
+    }
+    return ticks;
+};
+
+var _dateComps = [];
+
+defDateComp(1, {
+    format: "%S.%Qs",
+    multiples: [ 1, 5, 25, 50, 100, 250 ],
+    thresholds: [ 10, 50, 100, 200, 1e3, 1/0 ],
+    closeds: [ 1, 1, 1, 1, 1, 1 ]
+});
+
+defDateComp(1e3, {
+    get: function(d) {
+        return d.getSeconds();
+    },
+    set: function(d, v) {
+        d.setSeconds(v);
+    },
+    format: "%I:%M:%S",
+    multiples: [ 1, 5, 10, 15 ],
+    thresholds: [ 10, 60, 90, 1/0 ],
+    closeds: [ 1, 1, 1, 1 ]
+});
+
+defDateComp(6e4, {
+    get: function(d) {
+        return d.getMinutes();
+    },
+    set: function(d, v) {
+        d.setMinutes(v);
+    },
+    format: "%I:%M %p",
+    multiples: [ 1, 5, 10, 15 ],
+    thresholds: [ 10, 15, 30, 1/0 ],
+    closeds: [ 1, 1, 1, 1 ]
+});
+
+defDateComp(36e5, {
+    get: function(d) {
+        return d.getHours();
+    },
+    set: function(d, v) {
+        d.setHours(v);
+    },
+    format: "%I:%M %p",
+    multiples: [ 1, 3, 6 ],
+    thresholds: [ 10, 20, 1/0 ],
+    closeds: [ 1, 1, 1 ]
+});
+
+defDateComp(864e5, {
+    get: function(d) {
+        return d.getDate();
+    },
+    set: function(d, v) {
+        d.setDate(v);
+    },
+    format: "%m/%d",
+    first: 1,
+    multiples: [ 1, 2, 3, 5 ],
+    thresholds: [ 10, 15, 30, 1/0 ],
+    closeds: [ 1, 0, 0, 1 ]
+});
+
+defDateComp(6048e5, {
+    get: function(d) {
+        return d.getDate();
+    },
+    set: function(d, v) {
+        d.setDate(v);
+    },
+    mult: 7,
+    floor: function(d, options) {
+        var wd = d.getDay() - pv.get(options, "weekStart", 0);
+        if (0 !== wd) {
+            0 > wd && (wd += 7);
+            this.set(d, this.get(d) - wd);
+        }
+    },
+    first: function(d, options) {
+        return this.get(firstWeekStartOfMonth(d, pv.get(options, "weekStart", 0)));
+    },
+    format: "%m/%d",
+    multiples: [ 1, 2, 3 ],
+    thresholds: [ 10, 15, 1/0 ],
+    closeds: [ 1, 1, 1 ]
+});
+
+defDateComp(2592e6, {
+    get: function(d) {
+        return d.getMonth();
+    },
+    set: function(d, v) {
+        d.setMonth(v);
+    },
+    format: "%m/%Y",
+    multiples: [ 1, 2, 3 ],
+    thresholds: [ 12, 24, 1/0 ],
+    closeds: [ 1, 1, 1 ]
+});
+
+defDateComp(31536e6, {
+    get: function(d) {
+        return d.getFullYear();
+    },
+    set: function(d, v) {
+        d.setFullYear(v);
+    },
+    format: "%Y",
+    multiple: function(N) {
+        if (10 >= N) return 1;
+        var mult = pv.logCeil(N / 15, 10);
+        2 > N / mult ? mult /= 5 : 5 > N / mult && (mult /= 2);
+        return mult;
+    },
+    castValue: function(value, ceil) {
+        var base, mult, M = value / this.value;
+        if (1 > M) {
+            if (!ceil) return this.prev ? this.prev.castValue(value, ceil) : this._castValueResult(1, value, -1);
+            base = 1;
+        } else base = pv.logFloor(M, 10);
+        mult = M / base;
+        if (ceil) if (mult > 5) {
+            base *= 10;
+            mult = 1;
+        } else mult = mult > 2 ? 5 : mult > 1 ? 2 : 1; else if (mult > 5) mult = 5; else if (mult > 2) mult = 2; else if (mult > 1) mult = 1; else if (1 > mult) return this.prev ? this.prev.castValue(value, ceil) : this._castValueResult(base, value, -1);
+        return this._castValueResult(base * mult, value, 0);
+    }
+});
 
 pv.Scale.linear = function() {
     var scale = pv.Scale.quantitative();
@@ -1985,30 +2435,70 @@ pv.Scale.ordinal = function() {
         r.step = step;
         return this;
     };
-    scale.splitBandedCenter = function(min, max, band) {
-        scale.split(min, max);
-        null == band && (band = 1);
-        r.band = r.step * band;
-        r.margin = r.step - r.band;
+    scale.splitBandedCenter = function(min, max, bandRatio) {
+        null == bandRatio && (bandRatio = 1);
+        return this._splitBandedCore(min, max, function(info) {
+            var S = info.range / info.count;
+            info.step = S;
+            info.band = S * bandRatio;
+            info.offset = S / 2;
+        });
+    };
+    scale.splitBandedCenterAbs = function(min, max, band, margin) {
+        return this._splitBandedCore(min, max, function(info) {
+            var step;
+            if (null == band || null == margin) {
+                step = info.range / info.count;
+                if (null == band) if (null == margin) {
+                    band = step;
+                    margin = 0;
+                } else {
+                    margin = Math.min(margin, step);
+                    band = step - margin;
+                } else {
+                    band = Math.min(band, step);
+                    margin = step - band;
+                }
+            } else step = band + margin;
+            info.step = step;
+            info.band = band;
+            info.offset = step / 2;
+        });
+    };
+    scale._splitBandedCore = function(min, max, fSplit) {
+        var margin, info = {
+            min: min,
+            max: max,
+            range: max - min,
+            count: this.domain().length,
+            offset: 0,
+            step: 0,
+            band: 0
+        };
+        if (0 === info.range) {
+            r = pv.array(info.count, min);
+            margin = 0;
+        } else if (info.count) {
+            fSplit(info);
+            margin = info.step - info.band;
+            r = pv.range(min + info.offset, max, info.step);
+        }
+        r.offset = info.offset;
+        r.step = info.step;
+        r.band = info.band;
+        r.margin = margin;
         r.min = min;
         r.max = max;
         return this;
     };
-    scale.splitBandedFlushCenter = function(min, max, band) {
-        null == band && (band = 1);
-        var R = max - min, N = this.domain().length, S = 0, B = 0, M = 0;
-        if (0 === R) r = pv.array(N, min); else if (N) {
-            B = R * band / N;
-            M = N > 1 ? (R - N * B) / (N - 1) : 0;
-            S = M + B;
-            r = pv.range(min + B / 2, max, S);
-        }
-        r.step = S;
-        r.band = B;
-        r.margin = M;
-        r.min = min;
-        r.max = max;
-        return this;
+    scale.splitBandedFlushCenter = function(min, max, bandRatio) {
+        null == bandRatio && (bandRatio = 1);
+        return this._splitBandedCore(min, max, function(info) {
+            var R = info.range, N = info.count, B = R * bandRatio / N, M = N > 1 ? (R - N * B) / (N - 1) : 0;
+            info.band = B;
+            info.step = M + B;
+            info.offset = B / 2;
+        });
     };
     scale.splitFlush = function(min, max) {
         var n = this.domain().length, step = (max - min) / (n - 1);
@@ -2139,16 +2629,44 @@ pv.histogram = function(data, f) {
     var pi = Math.PI, pi2 = 2 * pi, atan2 = Math.atan2;
     pv.Shape.normalizeAngle = function(a) {
         a %= pi2;
-        0 > a && (a += pi2);
+        pv.floatLess(a, 0) && (a += pi2);
         return a;
     };
     pv.Shape.atan2Norm = function(dy, dx) {
         var a = atan2(dy, dx);
-        0 > a && (a += pi2);
+        pv.floatLess(a, 0) && (a += pi2);
         return a;
     };
     pv.Shape.prototype.hasArea = function() {
         return !0;
+    };
+    pv.Shape.prototype.bbox = function() {
+        return this._bbox || (this._bbox = this._calcBBox());
+    };
+    pv.Shape.prototype._calcBBox = function() {
+        var minX, minY, maxX, maxY;
+        this.points().forEach(function(point) {
+            var x = point.x, y = point.y;
+            if (null == minX) {
+                minX = maxX = x;
+                minY = maxY = y;
+            } else {
+                minX > x ? minX = x : x > maxX && (maxX = x);
+                minY > y ? minY = y : y > maxY && (maxY = y);
+            }
+        });
+        return null != minX ? new pv.Shape.Rect(minX, minY, maxX - minX, maxY - minY) : void 0;
+    };
+    pv.Shape.prototype.containsPoint = function(p, k) {
+        if (k) {
+            var bbox;
+            if (!k.y) return bbox = this.bbox(), pv.floatBelongsClosed(bbox.x, p.x, bbox.x2);
+            if (!k.x) return bbox = this.bbox(), pv.floatBelongsClosed(bbox.y, p.y, bbox.y2);
+        }
+        return this._containsPointCore(p);
+    };
+    pv.Shape.prototype._containsPointCore = function() {
+        return !1;
     };
 }();
 
@@ -2181,10 +2699,10 @@ pv.histogram = function(data, f) {
         return new Point(this.x * k, this.y * k);
     };
     pv.Vector.prototype.plus = function(x, y) {
-        return 1 == arguments.length ? new Point(this.x + x.x, this.y + x.y) : new Point(this.x + x, this.y + y);
+        return 1 === arguments.length ? new Point(this.x + x.x, this.y + x.y) : new Point(this.x + x, this.y + y);
     };
     pv.Vector.prototype.minus = function(x, y) {
-        return 1 == arguments.length ? new Point(this.x - x.x, this.y - x.y) : new Point(this.x - x, this.y - y);
+        return 1 === arguments.length ? new Point(this.x - x.x, this.y - x.y) : new Point(this.x - x, this.y - y);
     };
     pv.Vector.prototype.dot = function(x, y) {
         return 1 == arguments.length ? this.x * x.x + this.y * x.y : this.x * x + this.y * y;
@@ -2199,9 +2717,9 @@ pv.histogram = function(data, f) {
         return new Point(t.x + t.k * this.x, t.y + t.k * this.y);
     };
     pv.Vector.prototype.intersectsRect = function(rect) {
-        return this.x >= rect.x && this.x <= rect.x2 && this.y >= rect.y && this.y <= rect.y2;
+        return pv.floatBelongsClosed(rect.x, this.x, rect.x2) && pv.floatBelongsClosed(rect.y, this.y, rect.y2);
     };
-    pv.Vector.prototype.containsPoint = function(p) {
+    pv.Vector.prototype._containsPointCore = function(p) {
         return this.x === p.x && this.y === p.y;
     };
     pv.Vector.prototype.points = function() {
@@ -2264,29 +2782,29 @@ pv.histogram = function(data, f) {
         for (i = 0; L > i; i++) if (this.intersectsLine(edges[i])) return !0;
         return !1;
     };
-    Line.prototype.containsPoint = function(p) {
+    Line.prototype._containsPointCore = function(p) {
         var x = this.x, x2 = this.x2, y = this.y, y2 = this.y2;
-        return x <= p.x && p.x <= x2 && (x === x2 ? Math.min(y, y2) <= p.y && p.y <= Math.max(y, y2) : Math.abs((y2 - y) / (x2 - x) * (p.x - x) + y - p.y) <= 1e-10);
+        return pv.floatBelongsClosed(x, p.x, x2) && (pv.floatEqual(x, x2) ? pv.floatBelongsClosed(Math.min(y, y2), p.y, Math.max(y, y2)) : pv.floatZero((y2 - y) / (x2 - x) * (p.x - x) + y - p.y));
     };
     Line.prototype.intersectsLine = function(b) {
         var a = this, x21 = a.x2 - a.x, y21 = a.y2 - a.y, x43 = b.x2 - b.x, y43 = b.y2 - b.y, denom = y43 * x21 - x43 * y21;
-        if (0 === denom) return !1;
+        if (pv.floatZero(denom)) return !1;
         var y13 = a.y - b.y, x13 = a.x - b.x, numa = x43 * y13 - y43 * x13, numb = x21 * y13 - y21 * x13;
-        if (0 === denom) return 0 === numa && 0 === numb;
+        if (pv.floatZero(denom)) return pv.floatZero(numa) && pv.floatZero(numb);
         var ua = numa / denom;
-        if (0 > ua || ua > 1) return !1;
+        if (!pv.floatBelongsClosed(0, ua, 1)) return !1;
         var ub = numb / denom;
-        return 0 > ub || ub > 1 ? !1 : !0;
+        return pv.floatBelongsClosed(0, ub, 1) ? !0 : !1;
     };
     Line.prototype.distance2 = function(p, k) {
         var v = this, w = {
             x: this.x2,
             y: this.y2
-        }, l2 = dist2(v, w).dist2;
-        if (1e-10 >= l2) return dist2(p, v, k);
+        }, l2 = dist2(v, w).cost;
+        if (pv.floatZero(l2)) return dist2(p, v, k);
         var wvx = w.x - v.x, wvy = w.y - v.y, t = ((p.x - v.x) * wvx + (p.y - v.y) * wvy) / l2;
-        if (0 > t) return dist2(p, v, k);
-        if (t > 1) return dist2(p, w, k);
+        if (pv.floatLess(t, 0)) return dist2(p, v, k);
+        if (pv.floatGreater(t, 1)) return dist2(p, w, k);
         var proj = {
             x: v.x + t * wvx,
             y: v.y + t * wvy
@@ -2344,7 +2862,7 @@ pv.histogram = function(data, f) {
         };
         this.edges().forEach(function(edge) {
             var d = edge.distance2(p, k);
-            d.cost < min.cost && (min = d);
+            pv.floatLess(d.cost, min.cost) && (min = d);
         }, this);
         return min;
     };
@@ -2356,38 +2874,14 @@ pv.histogram = function(data, f) {
         }
         return new Point(x / L, y / L);
     };
-    Polygon.prototype.containsPoint = function(p) {
+    Polygon.prototype._containsPointCore = function(p) {
         var bbox = this.bbox();
-        if (!bbox.containsPoint(p)) return !1;
+        if (!bbox._containsPointCore(p)) return !1;
         var e = .01 * bbox.dx, ray = new Line(bbox.x - e, p.y, p.x, p.y), intersectCount = 0, edges = this.edges();
         edges.forEach(function(edge) {
             edge.intersectsLine(ray) && intersectCount++;
         });
         return 1 === (1 & intersectCount);
-    };
-    Polygon.prototype.bbox = function() {
-        var bbox = this._bbox;
-        if (!bbox) {
-            var min, max;
-            this.points().forEach(function(point) {
-                if (null == min) min = {
-                    x: point.x,
-                    y: point.y
-                }; else {
-                    point.x < min.x && (min.x = point.x);
-                    point.y < min.y && (min.y = point.y);
-                }
-                if (null == max) max = {
-                    x: point.x,
-                    y: point.y
-                }; else {
-                    point.x > max.x && (max.x = point.x);
-                    point.y > max.y && (max.y = point.y);
-                }
-            });
-            min && (bbox = this._bbox = new pv.Shape.Rect(min.x, min.y, max.x - min.x, max.y - min.y));
-        }
-        return bbox;
     };
 }();
 
@@ -2399,11 +2893,11 @@ pv.histogram = function(data, f) {
         this.dx = dx || 0;
         this.dy = dy || 0;
         if (this.dx < 0) {
-            this.dx = -this.dx;
+            this.dx = Math.max(0, -this.dx);
             this.x = this.x - this.dx;
         }
         if (this.dy < 0) {
-            this.dy = -this.dy;
+            this.dy = Math.max(0, -this.dy);
             this.y = this.y - this.dy;
         }
         this.x2 = this.x + this.dx;
@@ -2425,11 +2919,11 @@ pv.histogram = function(data, f) {
         var x = t.x + t.k * this.x, y = t.y + t.k * this.y, dx = t.k * this.dx, dy = t.k * this.dy;
         return new Rect(x, y, dx, dy);
     };
-    Rect.prototype.containsPoint = function(p) {
-        return this.x <= p.x && p.x <= this.x2 && this.y <= p.y && p.y <= this.y2;
+    Rect.prototype._containsPointCore = function(p) {
+        return pv.floatBelongsClosed(this.x, p.x, this.x2) && pv.floatBelongsClosed(this.y, p.y, this.y2);
     };
     Rect.prototype.intersectsRect = function(rect) {
-        return this.x2 > rect.x && this.x < rect.x2 && this.y2 > rect.y && this.y < rect.y2;
+        return pv.floatGreater(this.x2, rect.x) && pv.floatLess(this.x, rect.x2) && pv.floatGreater(this.y2, rect.y) && pv.floatLess(this.y, rect.y2);
     };
     Rect.prototype.edges = function() {
         if (!this._edges) {
@@ -2449,8 +2943,8 @@ pv.histogram = function(data, f) {
         }
         return points;
     };
-    Rect.prototype.bbox = function() {
-        return this.clone();
+    Rect.prototype._calcBBox = function() {
+        return this;
     };
 }();
 
@@ -2495,24 +2989,29 @@ pv.histogram = function(data, f) {
     Circle.prototype.normal = function(at) {
         return at.minus(this.x, this.y).norm();
     };
-    Circle.prototype.containsPoint = function(p) {
+    Circle.prototype._containsPointCore = function(p) {
         var dx = p.x - this.x, dy = p.y - this.y, r = this.radius;
         return r * r >= dx * dx + dy * dy;
     };
     Circle.prototype.distance2 = function(p, k) {
-        var r = (p.x - this.x, p.y - this.y, this.radius), b = p.minus(this).norm().times(r).plus(this), dBorder = dist2(p, b, k);
+        var r = this.radius, b = p.minus(this).norm().times(r).plus(this), dBorder = dist2(p, b, k);
         return dBorder;
+    };
+    Circle.prototype._calcBBox = function() {
+        var r = this.radius, r_2 = 2 * r;
+        return new pv.Shape.Rect(this.x - r, this.y - r, r_2, r_2);
     };
 }();
 
 !function() {
-    var Point = pv.Shape.Point, dist2 = pv.Shape.dist2, normalizeAngle = pv.Shape.normalizeAngle, atan2Norm = pv.Shape.atan2Norm, cos = Math.cos, sin = Math.sin, sqrt = Math.sqrt;
+    var Point = pv.Shape.Point, dist2 = pv.Shape.dist2, normalizeAngle = pv.Shape.normalizeAngle, atan2Norm = pv.Shape.atan2Norm, cos = Math.cos, sin = Math.sin, sqrt = Math.sqrt, pi = Math.PI, pi_2 = 2 * pi, pi_1_2 = pi / 2, pi_3_2 = 3 * pi / 2;
     pv.Shape.Arc = function(x, y, radius, startAngle, angleSpan) {
         this.x = x;
         this.y = y;
         this.radius = radius;
+        pv.floatBelongsClosed(0, angleSpan, pi_2) || (angleSpan = normalizeAngle(angleSpan));
         this.startAngle = normalizeAngle(startAngle);
-        this.angleSpan = normalizeAngle(angleSpan);
+        this.angleSpan = angleSpan;
         this.endAngle = this.startAngle + this.angleSpan;
     };
     var Arc = pv.Shape.Arc;
@@ -2534,16 +3033,20 @@ pv.histogram = function(data, f) {
         var x = t.x + t.k * this.x, y = t.y + t.k * this.y, r = t.k * this.radius;
         return new Arc(x, y, r, this.startAngle, this.angleSpan);
     };
-    Arc.prototype.containsPoint = function(p) {
+    Arc.prototype.containsAngle = function(a, inside) {
+        pv.floatBelongsClosed(0, a, pi_2) || (a = normalizeAngle(a));
+        var ai = this.startAngle, af = this.endAngle;
+        if (inside ? pv.floatBelongsOpen(ai, a, af) : pv.floatBelongsClosed(ai, a, af)) return !0;
+        if (pv.floatLessOrEqual(af, pi_2)) return !1;
+        a += pi_2;
+        return inside ? pv.floatBelongsOpen(ai, a, af) : pv.floatBelongsClosed(ai, a, af);
+    };
+    Arc.prototype._containsPointCore = function(p) {
         var dx = p.x - this.x, dy = p.y - this.y, r = sqrt(dx * dx + dy * dy);
-        if (Math.abs(r - this.radius) <= 1e-10) {
-            var a = atan2Norm(dy, dx);
-            return this.startAngle <= a && a <= this.endAngle;
-        }
-        return !1;
+        return pv.floatEqual(r, this.radius) && this.containsAngle(atan2Norm(dy, dx));
     };
     Arc.prototype.intersectsRect = function(rect) {
-        var i, L, points = this.points(), L = points.length;
+        var i, points = this.points(), L = points.length;
         for (i = 0; L > i; i++) if (points[i].intersectsRect(rect)) return !0;
         var edges = rect.edges();
         L = edges.length;
@@ -2555,14 +3058,21 @@ pv.histogram = function(data, f) {
         var ps = circleIntersectLine.call(this, line, isInfiniteLine);
         if (ps) {
             ps = ps.filter(function(p) {
-                return this.containsPoint(p);
+                return this._containsPointCore(p);
             }, this);
             if (ps.length) return ps;
         }
     };
     Arc.prototype.points = function() {
-        var x = this.x, y = this.y, r = this.radius, ai = this.startAngle, af = this.endAngle;
-        return [ new Point(x + r * cos(ai), y + r * sin(ai)), new Point(x + r * cos(af), y + r * sin(af)) ];
+        function addAngle(a) {
+            me.containsAngle(a, !0) && points.push(new Point(x + r * cos(a), y + r * sin(a)));
+        }
+        var me = this, x = me.x, y = me.y, r = me.radius, ai = me.startAngle, af = me.endAngle, points = [ new Point(x + r * cos(ai), y + r * sin(ai)), new Point(x + r * cos(af), y + r * sin(af)) ];
+        addAngle(0);
+        addAngle(pi_1_2);
+        addAngle(pi);
+        addAngle(pi_3_2);
+        return points;
     };
     Arc.prototype.center = function() {
         var x = this.x, y = this.y, r = this.radius, am = (this.startAngle + this.endAngle) / 2;
@@ -2578,25 +3088,26 @@ pv.histogram = function(data, f) {
     };
     Arc.prototype.distance2 = function(p, k) {
         var dx = p.x - this.x, dy = p.y - this.y, a = atan2Norm(dy, dx);
-        if (this.startAngle <= a && a <= this.endAngle) {
+        if (this.containsAngle(a)) {
             var b = new Point(this.x + this.radius * cos(a), this.y + this.radius * sin(a));
             return dist2(p, b, k);
         }
         var points = this.points(), d1 = dist2(p, points[0], k), d2 = dist2(p, points[1], k);
-        return d1.cost < d2.cost ? d1 : d2;
+        return pv.floatLess(d1.cost, d2.cost) ? d1 : d2;
     };
 }();
 
 !function() {
-    var Arc = pv.Shape.Arc, Line = pv.Shape.Line, Point = pv.Shape.Point, cos = Math.cos, sin = Math.sin, sqrt = Math.sqrt, atan2Norm = pv.Shape.atan2Norm, normalizeAngle = pv.Shape.normalizeAngle;
+    var Arc = pv.Shape.Arc, Line = pv.Shape.Line, Point = pv.Shape.Point, cos = Math.cos, sin = Math.sin, sqrt = Math.sqrt, pi = Math.PI, pi_2 = 2 * pi, pi_1_2 = pi / 2, pi_3_2 = 3 * pi / 2, atan2Norm = pv.Shape.atan2Norm, normalizeAngle = pv.Shape.normalizeAngle;
     pv.Shape.Wedge = function(x, y, innerRadius, outerRadius, startAngle, angleSpan) {
         this.x = x;
         this.y = y;
         this.innerRadius = innerRadius;
         this.outerRadius = outerRadius;
+        pv.floatBelongsClosed(0, angleSpan, pi_2) || (angleSpan = normalizeAngle(angleSpan));
         this.startAngle = normalizeAngle(startAngle);
-        this.angleSpan = normalizeAngle(angleSpan);
-        this.endAngle = this.startAngle + this.angleSpan;
+        this.angleSpan = angleSpan;
+        this.endAngle = this.startAngle + angleSpan;
     };
     var Wedge = pv.Shape.Wedge;
     Wedge.prototype = pv.extend(pv.Shape);
@@ -2607,22 +3118,20 @@ pv.histogram = function(data, f) {
         var x = t.x + t.k * this.x, y = t.y + t.k * this.y, ir = t.k * this.innerRadius, or = t.k * this.outerRadius;
         return new Wedge(x, y, ir, or, this.startAngle, this.angleSpan);
     };
-    Wedge.prototype.containsPoint = function(p) {
+    Wedge.prototype.containsAngle = Arc.prototype.containsAngle;
+    Wedge.prototype._containsPointCore = function(p) {
         var dx = p.x - this.x, dy = p.y - this.y, r = sqrt(dx * dx + dy * dy);
-        if (r >= this.innerRadius && r <= this.outerRadius) {
-            var a = atan2Norm(dy, dx);
-            return this.startAngle <= a && a <= this.endAngle;
-        }
-        return !1;
+        return pv.floatBelongsClosed(this.innerRadius, r, this.outerRadius) && this.containsAngle(atan2Norm(dy, dx));
     };
     Wedge.prototype.intersectsRect = function(rect) {
-        var i, L, points = this.points();
+        var i, L, points, edges;
+        points = this.points();
         L = points.length;
         for (i = 0; L > i; i++) if (points[i].intersectsRect(rect)) return !0;
         points = rect.points();
         L = points.length;
-        for (i = 0; L > i; i++) if (this.containsPoint(points[i])) return !0;
-        var edges = this.edges();
+        for (i = 0; L > i; i++) if (this._containsPointCore(points[i])) return !0;
+        edges = this.edges();
         L = edges.length;
         for (i = 0; L > i; i++) if (edges[i].intersectsRect(rect)) return !0;
         return !1;
@@ -2632,19 +3141,26 @@ pv.histogram = function(data, f) {
         return this._points;
     };
     Wedge.prototype.edges = function() {
-        var edges = this._edges;
+        function addAngle(a) {
+            me.containsAngle(a, !0) && points.push(new Point(x + or * cos(a), y + or * sin(a)));
+        }
+        var me = this, edges = me._edges;
         if (!edges) {
-            var pii, pfi, x = this.x, y = this.y, ir = this.innerRadius, or = this.outerRadius, ai = this.startAngle, af = this.endAngle, aa = this.angleSpan, cai = cos(ai), sai = sin(ai), caf = cos(af), saf = sin(af);
-            if (ir > 0) {
+            var pii, pfi, x = me.x, y = me.y, ir = me.innerRadius, irPositive = pv.floatGreater(ir, 0), or = me.outerRadius, ai = me.startAngle, af = me.endAngle, aa = me.angleSpan, cai = cos(ai), sai = sin(ai), caf = cos(af), saf = sin(af);
+            if (irPositive) {
                 pii = new Point(x + ir * cai, y + ir * sai);
                 pfi = new Point(x + ir * caf, y + ir * saf);
             } else pii = pfi = new Point(x, y);
             var pio = new Point(x + or * cai, y + or * sai), pfo = new Point(x + or * caf, y + or * saf);
-            edges = this._edges = [];
-            ir > 0 && edges.push(new Arc(x, y, ir, ai, aa));
+            edges = me._edges = [];
+            irPositive && edges.push(new Arc(x, y, ir, ai, aa));
             edges.push(new Line(pii.x, pii.y, pio.x, pio.y), new Arc(x, y, or, ai, aa), new Line(pfi.x, pfi.y, pfo.x, pfo.y));
-            var points = this._points = [ pii, pio, pfo ];
-            ir > 0 && points.push(pfi);
+            var points = me._points = [ pii, pio, pfo ];
+            irPositive && points.push(pfi);
+            addAngle(0);
+            addAngle(pi_1_2);
+            addAngle(pi);
+            addAngle(pi_3_2);
         }
         return edges;
     };
@@ -2655,7 +3171,7 @@ pv.histogram = function(data, f) {
         };
         this.edges().forEach(function(edge) {
             var d = edge.distance2(p, k);
-            d.cost < min.cost && (min = d);
+            pv.floatLess(d.cost, min.cost) && (min = d);
         });
         return min;
     };
@@ -4185,18 +4701,7 @@ pv.SvgScene.dot = function(scenes) {
                     "stroke-linecap": s.lineCap,
                     "stroke-dasharray": strokeOp ? this.parseDasharray(s) : null
                 }, shape = s.shape || "circle", ar = s.aspectRatio, sa = s.shapeAngle, t = null;
-                if ("circle" === shape) if (1 === ar) {
-                    svg.cx = s.left;
-                    svg.cy = s.top;
-                    svg.r = s.shapeRadius;
-                } else {
-                    shape = "ellipse";
-                    svg.cx = svg.cy = 0;
-                    t = "translate(" + s.left + "," + s.top + ") ";
-                    sa && (t += "rotate(" + pv.degrees(sa) + ") ");
-                    svg.rx = s._width / 2;
-                    svg.ry = s._height / 2;
-                } else {
+                if ("circle" !== shape && this.hasSymbol(shape)) {
                     var r = s.shapeRadius, rx = r, ry = r;
                     if (ar > 0 && 1 !== ar) {
                         var sy = 1 / Math.sqrt(ar), sx = ar * sy;
@@ -4207,6 +4712,18 @@ pv.SvgScene.dot = function(scenes) {
                     shape = "path";
                     t = "translate(" + s.left + "," + s.top + ") ";
                     sa && (t += "rotate(" + pv.degrees(sa) + ") ");
+                } else if (1 === ar) {
+                    shape = "circle";
+                    svg.cx = s.left;
+                    svg.cy = s.top;
+                    svg.r = s.shapeRadius;
+                } else {
+                    shape = "ellipse";
+                    svg.cx = svg.cy = 0;
+                    t = "translate(" + s.left + "," + s.top + ") ";
+                    sa && (t += "rotate(" + pv.degrees(sa) + ") ");
+                    svg.rx = s._width / 2;
+                    svg.ry = s._height / 2;
                 }
                 t && (svg.transform = t);
                 e = this.expect(e, shape, scenes, i, svg);
@@ -4222,7 +4739,7 @@ pv.SvgScene.dot = function(scenes) {
 !function(S) {
     var _renderersBySymName = {};
     S.registerSymbol = function(symName, funRenderer) {
-        _renderersBySymName[symName] = funRenderer;
+        _renderersBySymName[symName.toLowerCase()] = funRenderer;
         return S;
     };
     S.renderSymbol = function(symName, instance, rx, ry) {
@@ -5003,7 +5520,7 @@ pv.Mark.prototype._propertyValueRecursive = function(name) {
 
 pv.Mark.stack = [];
 
-pv.Mark.prototype.property("data").property("visible", Boolean).property("css", Object).property("svg", Object).property("left", Number).property("right", Number).property("top", Number).property("bottom", Number).property("cursor", String).property("title", String).property("reverse", Boolean).property("antialias", Boolean).property("events", String).property("id", String);
+pv.Mark.prototype.property("data").property("visible", Boolean).property("css", Object).property("svg", Object).property("left", Number).property("right", Number).property("top", Number).property("bottom", Number).property("cursor", String).property("title", String).property("reverse", Boolean).property("antialias", Boolean).property("events", pv.stringLowerCase).property("id", String);
 
 pv.Mark.prototype.childIndex = -1;
 
@@ -5640,6 +6157,17 @@ pv.Mark.prototype.getShapeCore = function(scenes, index, inset) {
     return new pv.Shape.Rect(l, t, w, h);
 };
 
+pv.Mark.prototype.pointingRadiusMax = function(value) {
+    if (arguments.length) {
+        value = +value;
+        this._pointingRadiusMax = isNaN(value) || 0 > value ? 0 : value;
+        return this;
+    }
+    return this._pointingRadiusMax;
+};
+
+pv.Mark.prototype._pointingRadiusMax = 1/0;
+
 pv.Anchor = function(target) {
     pv.Mark.call(this);
     this.target = target;
@@ -5659,6 +6187,7 @@ pv.Area = function() {
 
 pv.Area.castSegmented = function(v) {
     if (!v) return "";
+    v = String(v).toLowerCase();
     switch (v) {
       case "smart":
       case "full":
@@ -5670,7 +6199,7 @@ pv.Area.castSegmented = function(v) {
     return v;
 };
 
-pv.Area.prototype = pv.extend(pv.Mark).property("width", Number).property("height", Number).property("lineWidth", Number).property("lineJoin", String).property("strokeMiterLimit", Number).property("lineCap", String).property("strokeDasharray", String).property("strokeStyle", pv.fillStyle).property("fillStyle", pv.fillStyle).property("segmented", pv.Area.castSegmented).property("interpolate", String).property("tension", Number);
+pv.Area.prototype = pv.extend(pv.Mark).property("width", Number).property("height", Number).property("lineWidth", Number).property("lineJoin", pv.stringLowerCase).property("strokeMiterLimit", Number).property("lineCap", pv.stringLowerCase).property("strokeDasharray", pv.stringLowerCase).property("strokeStyle", pv.fillStyle).property("fillStyle", pv.fillStyle).property("segmented", pv.Area.castSegmented).property("interpolate", pv.stringLowerCase).property("tension", Number);
 
 pv.Area.prototype.type = "area";
 
@@ -5747,23 +6276,28 @@ pv.Area.prototype.anchor = function(name) {
 };
 
 pv.Area.prototype.getEventHandler = function(type, scene, index, ev) {
-    var s = scene[index], needEventSimulation = 1 === pv.Scene.mousePositionEventSet[type] && !s.segmented || "smart" === s.segmented;
+    var s = scene[index], needEventSimulation = 1 === pv.Scene.mousePositionEventSet[type] && (!s.segmented || "smart" === s.segmented);
     if (!needEventSimulation) return pv.Mark.prototype.getEventHandler.call(this, type, scene, index, ev);
-    var handler = this.$handlers[type], isMouseMove = "mousemove" === type, handlerMouseOver = isMouseMove ? this.$handlers.mouseover : null;
-    if (!handler && !handlerMouseOver) return this.getParentEventHandler(type, scene, index, ev);
-    var mouseIndex = this.getNearestInstanceToMouse(scene, index);
-    if (handler) {
-        if (handlerMouseOver) {
-            var prevMouseOverScene = this._mouseOverScene;
-            if (!prevMouseOverScene || prevMouseOverScene !== scene || this._mouseOverIndex !== mouseIndex) {
-                this._mouseOverScene = scene;
-                this._mouseOverIndex = mouseIndex;
-                return [ [ handler, handlerMouseOver ], scene, mouseIndex, ev ];
-            }
+    var mouseIndex, handlerMouseOver = "mousemove" === type ? this.$handlers.mouseover : null, handler = this.$handlers[type], handlers = handler || handlerMouseOver;
+    if (handlers) {
+        mouseIndex = this.getNearestInstanceToMouse(scene, index);
+        if (handlerMouseOver && !this.filterMouseMove(scene, mouseIndex)) {
+            handlerMouseOver = null;
+            handlers = handler;
         }
-        return [ handler, scene, mouseIndex, ev ];
     }
-    return [ handlerMouseOver, scene, mouseIndex, ev ];
+    if (!handlers) return this.getParentEventHandler(type, scene, index, ev);
+    handler && handlerMouseOver && (handlers = [].concat(handler, handlerMouseOver));
+    return [ handlers, scene, mouseIndex, ev ];
+};
+
+pv.Area.prototype.filterMouseMove = function(scene, mouseIndex) {
+    var prevMouseOverScene = this._mouseOverScene;
+    if (!prevMouseOverScene || prevMouseOverScene !== scene || this._mouseOverIndex !== mouseIndex) {
+        this._mouseOverScene = scene;
+        this._mouseOverIndex = mouseIndex;
+        return !0;
+    }
 };
 
 pv.Area.prototype.getNearestInstanceToMouse = function(scene, eventIndex) {
@@ -5792,7 +6326,7 @@ pv.Bar = function() {
     pv.Mark.call(this);
 };
 
-pv.Bar.prototype = pv.extend(pv.Mark).property("width", Number).property("height", Number).property("lineWidth", Number).property("strokeStyle", pv.fillStyle).property("fillStyle", pv.fillStyle).property("lineCap", String).property("strokeDasharray", String);
+pv.Bar.prototype = pv.extend(pv.Mark).property("width", Number).property("height", Number).property("lineWidth", Number).property("strokeStyle", pv.fillStyle).property("fillStyle", pv.fillStyle).property("lineCap", pv.stringLowerCase).property("strokeDasharray", pv.stringLowerCase);
 
 pv.Bar.prototype.type = "bar";
 
@@ -5802,7 +6336,7 @@ pv.Dot = function() {
     pv.Mark.call(this);
 };
 
-pv.Dot.prototype = pv.extend(pv.Mark).property("shape", String).property("shapeAngle", Number).property("shapeRadius", Number).property("shapeSize", Number).property("aspectRatio", Number).property("lineWidth", Number).property("strokeStyle", pv.fillStyle).property("lineCap", String).property("strokeDasharray", String).property("fillStyle", pv.fillStyle);
+pv.Dot.prototype = pv.extend(pv.Mark).property("shape", pv.stringLowerCase).property("shapeAngle", Number).property("shapeRadius", Number).property("shapeSize", Number).property("aspectRatio", Number).property("lineWidth", Number).property("strokeStyle", pv.fillStyle).property("lineCap", pv.stringLowerCase).property("strokeDasharray", pv.stringLowerCase).property("fillStyle", pv.fillStyle);
 
 pv.Dot.prototype.type = "dot";
 
@@ -5906,7 +6440,7 @@ pv.Label = function() {
     pv.Mark.call(this);
 };
 
-pv.Label.prototype = pv.extend(pv.Mark).property("text", String).property("font", String).property("textAngle", Number).property("textStyle", pv.color).property("textAlign", String).property("textBaseline", String).property("textMargin", Number).property("textDecoration", String).property("textShadow", String);
+pv.Label.prototype = pv.extend(pv.Mark).property("text", String).property("font", String).property("textAngle", Number).property("textStyle", pv.color).property("textAlign", pv.stringLowerCase).property("textBaseline", pv.stringLowerCase).property("textMargin", Number).property("textDecoration", String).property("textShadow", String);
 
 pv.Label.prototype.type = "label";
 
@@ -5964,7 +6498,7 @@ pv.Line = function() {
     pv.Mark.call(this);
 };
 
-pv.Line.prototype = pv.extend(pv.Mark).property("lineWidth", Number).property("lineJoin", String).property("strokeMiterLimit", Number).property("lineCap", String).property("strokeStyle", pv.fillStyle).property("strokeDasharray", String).property("fillStyle", pv.fillStyle).property("segmented", pv.Area.castSegmented).property("interpolate", String).property("eccentricity", Number).property("tension", Number);
+pv.Line.prototype = pv.extend(pv.Mark).property("lineWidth", Number).property("lineJoin", pv.stringLowerCase).property("strokeMiterLimit", Number).property("lineCap", pv.stringLowerCase).property("strokeStyle", pv.fillStyle).property("strokeDasharray", pv.stringLowerCase).property("fillStyle", pv.fillStyle).property("segmented", pv.Area.castSegmented).property("interpolate", pv.stringLowerCase).property("eccentricity", Number).property("tension", Number);
 
 pv.Line.prototype.type = "line";
 
@@ -5977,6 +6511,8 @@ pv.Line.prototype.buildInstance = pv.Area.prototype.buildInstance;
 pv.Line.prototype.getEventHandler = pv.Area.prototype.getEventHandler;
 
 pv.Line.prototype.getNearestInstanceToMouse = pv.Area.prototype.getNearestInstanceToMouse;
+
+pv.Line.prototype.filterMouseMove = pv.Area.prototype.filterMouseMove;
 
 pv.Line.prototype.anchor = function(name) {
     return pv.Area.prototype.anchor.call(this, name).textAlign(function() {
@@ -6017,7 +6553,7 @@ pv.Rule = function() {
     pv.Mark.call(this);
 };
 
-pv.Rule.prototype = pv.extend(pv.Mark).property("width", Number).property("height", Number).property("lineWidth", Number).property("strokeStyle", pv.fillStyle).property("lineCap", String).property("strokeDasharray", String);
+pv.Rule.prototype = pv.extend(pv.Mark).property("width", Number).property("height", Number).property("lineWidth", Number).property("strokeStyle", pv.fillStyle).property("lineCap", pv.stringLowerCase).property("strokeDasharray", pv.stringLowerCase);
 
 pv.Rule.prototype.type = "rule";
 
@@ -6046,7 +6582,7 @@ pv.Panel = function() {
     this.$dom = pv.$ && pv.$.s;
 };
 
-pv.Panel.prototype = pv.extend(pv.Bar).property("transform").property("overflow", String).property("canvas", function(c) {
+pv.Panel.prototype = pv.extend(pv.Bar).property("transform").property("overflow", pv.stringLowerCase).property("canvas", function(c) {
     return "string" == typeof c ? document.getElementById(c) : c;
 });
 
@@ -6237,7 +6773,7 @@ pv.Wedge = function() {
     pv.Mark.call(this);
 };
 
-pv.Wedge.prototype = pv.extend(pv.Mark).property("startAngle", Number).property("endAngle", Number).property("angle", Number).property("innerRadius", Number).property("outerRadius", Number).property("lineWidth", Number).property("strokeStyle", pv.fillStyle).property("lineJoin", String).property("strokeMiterLimit", Number).property("lineCap", String).property("strokeDasharray", String).property("fillStyle", pv.fillStyle);
+pv.Wedge.prototype = pv.extend(pv.Mark).property("startAngle", Number).property("endAngle", Number).property("angle", Number).property("innerRadius", Number).property("outerRadius", Number).property("lineWidth", Number).property("strokeStyle", pv.fillStyle).property("lineJoin", pv.stringLowerCase).property("strokeMiterLimit", Number).property("lineCap", pv.stringLowerCase).property("strokeDasharray", pv.stringLowerCase).property("fillStyle", pv.fillStyle);
 
 pv.Wedge.prototype.type = "wedge";
 
@@ -6618,6 +7154,7 @@ pv.Transient.prototype = pv.extend(pv.Mark);
             }
             var list, start;
             root.$transition = that;
+            root._renderId++;
             var before = mark.scene;
             mark.scene = null;
             var i0 = pv.Mark.prototype.index;
@@ -9089,80 +9626,174 @@ pv.Behavior.drag = function() {
     return mousedown;
 };
 
-pv.Behavior.point = function(r) {
-    function search(scene, index) {
-        for (var s = scene[index], point = {
-            cost: 1/0
-        }, i = (s.visible ? s.children.length : 0) - 1; i >= 0; i--) {
-            var p, child = s.children[i], mark = child.mark;
-            if ("panel" == mark.type) {
-                mark.scene = child;
-                for (var j = child.length - 1; j >= 0; j--) {
+pv.Behavior.point = function(keyArgs) {
+    function searchSceneChildren(scene, curr) {
+        if (scene.visible) for (var i = scene.children.length - 1; i >= 0; i--) if (searchScenes(scene.children[i], curr)) return !0;
+    }
+    function searchScenes(scenes, curr) {
+        var result, mark = scenes.mark, isPanel = "panel" === mark.type;
+        if (mark.$handlers.point) for (var visibility, mouse = (isPanel && mark.parent || mark).mouse(), markRMax = mark._pointingRadiusMax, markCostMax = markRMax * markRMax, j = scenes.length - 1; j >= 0; j--) if ((visibility = sceneVisibility(scenes, j)) && evalScene(scenes, j, mouse, curr, visibility, markCostMax)) {
+            result = !0;
+            break;
+        }
+        if (isPanel) {
+            mark.scene = scenes;
+            try {
+                for (var j = scenes.length - 1; j >= 0; j--) {
                     mark.index = j;
-                    p = search(child, j);
-                    p.cost < point.cost && (point = p);
+                    if (searchSceneChildren(scenes[j], curr)) return !0;
                 }
+            } finally {
                 delete mark.scene;
                 delete mark.index;
-            } else if (mark.$handlers.point) for (var v = mark.mouse(), j = child.length - 1; j >= 0; j--) {
-                var c = child[j], dx = v.x - c.left - (c.width || 0) / 2, dy = v.y - c.top - (c.height || 0) / 2, dd = kx * dx * dx + ky * dy * dy;
-                if (dd < point.cost) {
-                    point.distance = dx * dx + dy * dy;
-                    point.cost = dd;
-                    point.scene = child;
-                    point.index = j;
+            }
+        }
+        return result;
+    }
+    function sceneVisibility(scenes, index) {
+        var s = scenes[index];
+        if (!s.visible) return 0;
+        if (!painted) return 1;
+        var ps = scenes.mark.properties;
+        if (!ps.fillStyle && !ps.strokeStyle) return 1;
+        var o1 = s.fillStyle ? s.fillStyle.opacity : 0, o2 = s.strokeStyle ? s.strokeStyle.opacity : 0, o = Math.max(o1, o2);
+        return .02 > o ? 0 : o > .98 ? 1 : .5;
+    }
+    function evalScene(scenes, index, mouse, curr, visibility, markCostMax) {
+        function makeChoice() {
+            if (applyMarkCostMax && 0 >= markCostMax) return -1;
+            cand = shape.distance2(mouse, k);
+            if (applyMarkCostMax && pv.floatLess(markCostMax, cand.cost)) return -2;
+            if (finiteDist2Max && !inside && pv.floatLess(dist2Max, cand.dist2)) return -3;
+            if (hasArea === curr.hasArea) {
+                if (inside < curr.inside) return -4;
+                if (inside > curr.inside) return 1;
+            } else {
+                if (collapse) {
+                    if (!inside && curr.inside) return -5;
+                    if (inside && !curr.inside) return 2;
+                }
+                if (hasArea || 2 !== curr.inside) {
+                    if (hasArea && 2 === inside) {
+                        if (2 === curr.inside) return -7;
+                        if (0 === curr.inside && pv.floatLess(3, curr.cost)) return 4;
+                    }
+                } else {
+                    if (2 === inside) return 3;
+                    if (0 === inside && pv.floatLess(3, cand.cost)) return -6;
                 }
             }
-        }
-        return point;
-    }
-    function mousemove(e) {
-        var point = search(this.scene, this.index);
-        (1/0 == point.cost || point.distance > r2) && (point = null);
-        if (unpoint) {
-            if (point && unpoint.scene == point.scene && unpoint.index == point.index) return;
-            pv.Mark.dispatch("unpoint", unpoint.scene, unpoint.index, e);
-        }
-        if (unpoint = point) {
-            pv.Mark.dispatch("point", point.scene, point.index, e);
-            if (pointingPanel || "panel" !== this.type) pv.listen(this.root.canvas(), "mouseout", mouseout); else {
-                pointingPanel = this;
-                pointingPanel.event("mouseout", function() {
-                    var ev = arguments[arguments.length - 1];
-                    mouseout.call(pointingPanel.scene.$g, ev);
-                });
+            if (!collapse || !inside) {
+                if (pv.floatLess(curr.dist2, cand.dist2)) return -8;
+                if (pv.floatLess(cand.dist2, curr.dist2)) return 5;
             }
+            return collapse && pv.floatLess(cand.cost, curr.cost) ? 6 : -9;
+        }
+        var cand, shape = scenes.mark.getShape(scenes, index), hasArea = shape.hasArea(), inside = shape.containsPoint(mouse, k) ? !collapse || shape.containsPoint(mouse) ? 2 : 1 : 0, applyMarkCostMax = isFinite(markCostMax) && 2 > inside, choice = makeChoice();
+        DEBUG && function() {
+            if (-3 > choice || choice > 0) {
+                var pointMark = scenes && scenes.mark;
+                console.log("POINT " + (choice > 0 ? "choose" : "skip") + " (" + choice + ") " + (pointMark ? pointMark.type + " " + index : "none") + " in=" + inside + " d2=" + (cand && cand.dist2) + " cost=" + (cand && cand.cost) + " opaq=" + (1 === visibility));
+            }
+        }();
+        if (choice > 0) {
+            curr.hasArea = hasArea;
+            curr.inside = inside;
+            curr.dist2 = cand.dist2;
+            curr.cost = cand.cost;
+            curr.scenes = scenes;
+            curr.index = index;
+            curr.shape = shape;
+            if (hasArea && 2 === inside && 1 === visibility) return !0;
         }
     }
-    function mouseout(e) {
+    function mousemove() {
+        var e = pv.event;
+        DEBUG && console.log("POINT MOUSE MOVE BEG");
+        try {
+            var point = {
+                cost: 1/0,
+                dist2: 1/0,
+                inside: 0,
+                hasArea: !1,
+                x: e.pageX || 0,
+                y: e.pageY || 0
+            };
+            if (unpoint && radiusHyst2 && pv.Shape.dist2(point, unpoint).cost < radiusHyst2) return;
+            searchSceneChildren(this.scene[this.index], point);
+            point.inside || isFinite(point.cost) || (point = null);
+            if (unpoint) {
+                if (point && unpoint.scenes == point.scenes && unpoint.index == point.index) return;
+                e.isPointSwitch = !!point;
+                pv.Mark.dispatch("unpoint", unpoint.scenes, unpoint.index, e);
+            }
+            unpoint = point;
+            if (point) {
+                pv.Mark.dispatch("point", point.scenes, point.index, e);
+                if (pointingPanel || "panel" !== this.type) pv.listen(this.root.canvas(), "mouseout", mouseout); else {
+                    pointingPanel = this;
+                    pointingPanel.event("mouseout", function() {
+                        mouseout.call(pointingPanel.scene.$g);
+                    });
+                    stealClick && pointingPanel.addEventInterceptor("click", eventInterceptor);
+                }
+            }
+        } finally {
+            DEBUG && console.log("POINT MOUSE MOVE END");
+        }
+    }
+    function mouseout() {
+        var e = pv.event;
         if (unpoint && !pv.ancestor(this, e.relatedTarget)) {
-            pv.Mark.dispatch("unpoint", unpoint.scene, unpoint.index, e);
+            pv.Mark.dispatch("unpoint", unpoint.scenes, unpoint.index, e);
             unpoint = null;
         }
     }
-    var unpoint, collapse = null, kx = 1, ky = 1, pointingPanel = null, r2 = arguments.length ? r * r : 900;
+    function eventInterceptor(type, ev) {
+        if (unpoint) {
+            var scenes = unpoint.scenes, handler = scenes.mark.$handlers[type];
+            if (handler) return [ handler, scenes, unpoint.index, ev ];
+        }
+    }
+    "object" != typeof keyArgs && (keyArgs = {
+        radius: keyArgs
+    });
+    var unpoint, DEBUG = 0, collapse = null, painted = !!pv.get(keyArgs, "painted", !1), stealClick = !!pv.get(keyArgs, "stealClick", !1), k = {
+        x: 1,
+        y: 1
+    }, pointingPanel = null, dist2Max = function() {
+        var r = pv.parseNumNonNeg(pv.get(keyArgs, "radius"), 30);
+        return r * r;
+    }(), finiteDist2Max = isFinite(dist2Max), radiusHyst2 = function() {
+        var r = pv.parseNumNonNeg(pv.get(keyArgs, "radiusHyst"), 0);
+        isFinite(r) || (r = 4);
+        return r * r;
+    }();
     mousemove.collapse = function(x) {
         if (arguments.length) {
             collapse = String(x);
             switch (collapse) {
               case "y":
-                kx = 1;
-                ky = 0;
+                k.x = 1;
+                k.y = 0;
                 break;
 
               case "x":
-                kx = 0;
-                ky = 1;
+                k.x = 0;
+                k.y = 1;
                 break;
 
               default:
-                kx = 1;
-                ky = 1;
+                k.x = 1;
+                k.y = 1;
+                collapse = null;
             }
             return mousemove;
         }
         return collapse;
     };
+    keyArgs && null != keyArgs.collapse && mousemove.collapse(keyArgs.collapse);
+    keyArgs = null;
     return mousemove;
 };
 
@@ -9171,6 +9802,8 @@ pv.Behavior.select = function() {
         dragstart: function(ev) {
             var drag = ev.drag;
             drag.type = "select";
+            drag.dxmin = 0;
+            drag.dymin = 0;
             var r = drag.d;
             r.drag = drag;
             drag.max = {
@@ -9189,11 +9822,11 @@ pv.Behavior.select = function() {
             var m = drag.m;
             if (kx) {
                 r.x = shared.bound(m.x, "x");
-                preserveLength || (r.dx = 0);
+                preserveLength || (r.dx = Math.max(0, drag.dxmin));
             }
             if (ky) {
                 r.y = shared.bound(m.y, "y");
-                preserveLength || (r.dy = 0);
+                preserveLength || (r.dy = Math.max(0, drag.dymin));
             }
             pv.Mark.dispatch("selectstart", drag.scene, drag.index, ev);
         },
@@ -9214,7 +9847,7 @@ pv.Behavior.select = function() {
                 if (!preserveLength) {
                     var ex = Math.max(m.x, m1.x);
                     ex = shared.bound(ex, "x");
-                    r.dx = ex - bx;
+                    r.dx = Math.max(0, drag.dxmin, ex - bx);
                 }
             }
             if (ky) {
@@ -9224,7 +9857,7 @@ pv.Behavior.select = function() {
                 if (!preserveLength) {
                     var ey = Math.max(m.y, m1.y);
                     ey = shared.bound(ey, "y");
-                    r.dy = ey - by;
+                    r.dy = Math.max(0, drag.dymin, ey - by);
                 }
             }
             shared.autoRender && this.render();
@@ -9322,8 +9955,8 @@ pv.Behavior.resize = function(side) {
             }
             if (!preserveOrtho || !isLeftRight) {
                 var by = Math.min(m1.y, m.y), ey = Math.max(m.y, m1.y);
-                bx = shared.bound(by, "y");
-                ex = shared.bound(ey, "y");
+                by = shared.bound(by, "y");
+                ey = shared.bound(ey, "y");
                 r.y = by;
                 r.dy = ey - by;
             }
@@ -9332,7 +9965,7 @@ pv.Behavior.resize = function(side) {
         },
         dragend: function(ev) {
             var drag = ev.drag;
-            max = null;
+            drag.max = null;
             try {
                 pv.Mark.dispatch("resizeend", drag.scene, drag.index, ev);
             } finally {

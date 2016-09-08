@@ -44,6 +44,13 @@
             height: height
         };
     }
+    $.fn.tipsy.elementOptions = function(elem, options) {
+        var markOpts = elem.$tooltipOptions;
+        options = $.extend({}, options, markOpts || {}, {
+            gravity: options.gravity
+        });
+        return options;
+    };
     var _nextTipsyId = 0;
     pv.Behavior.tipsy = function(opts) {
         function getTooltipText() {
@@ -95,9 +102,14 @@
                 height: height
             };
         }
+        function getTooltipOptions() {
+            return _mark && _mark.tooltipOptions || opts;
+        }
         function updateUserGravity() {
-            _userGravityFun && (_userGravity = _userGravityFun.call(_mark) || $.fn.tipsy.defaults.gravity);
-            return _userGravity;
+            var opts = getTooltipOptions(), grav = pv.get(opts, "gravity");
+            grav && "function" == typeof grav && (grav = grav.call(_mark));
+            _tip.debug >= 21 && _tip.log("[TIPSY] #" + _tipsyId + " Update User Gravity " + grav);
+            return _userGravity = grav || $.fn.tipsy.defaults.gravity;
         }
         function calculateGravity(tipSize, calcPosition) {
             function scoreGravity(gravity) {
@@ -105,14 +117,20 @@
                 return scorePosition(gravity, tp);
             }
             function scorePosition(gravity, tp) {
-                var wScore = calcPosScore(tp.left, "width"), hScore = calcPosScore(tp.top, "height"), isTotal = wScore.fits && hScore.fits;
+                var wScore = calcPosScore(tp.left, "width"), hScore = calcPosScore(tp.top, "height"), isMouseInside = _mousePage && !opts.followMouse;
+                if (isMouseInside) {
+                    var tipRect = new pv.Shape.Rect(tp.left, tp.top, tipSize.width, tipSize.height);
+                    isMouseInside = tipRect.containsPoint(_mousePage);
+                }
+                var isTotal = !isMouseInside && wScore.fits && hScore.fits, value = wScore.value + hScore.value + (2 - gravity.length) + (isMouseInside ? -1e3 : 0);
                 return {
                     gravity: gravity,
                     width: wScore,
                     height: hScore,
-                    value: wScore.value + hScore.value + (2 - gravity.length),
+                    value: value,
+                    isMouseInside: isMouseInside,
                     isTotal: isTotal,
-                    isPartial: !isTotal && (wScore.fits || hScore.fits)
+                    isPartial: wScore.fits || hScore.fits
                 };
             }
             function calcPosScore(absPos, a_len) {
@@ -162,16 +180,18 @@
             });
         }
         function createTipsy(mark) {
+            _tip.debug >= 20 && _tip.log("[TIPSY] #" + _tipsyId + " Creating");
             var c = mark.root.canvas();
             $canvas = $(c);
             c.style.position = "relative";
             $canvas.mouseleave(hideTipsy);
+            opts.usesPoint && opts.followMouse && mark.root.event("mousemove", doFollowMouse);
             initTipsyCanvasSharedInfo();
-            id || (id = "tipsyPvBehavior_" + new Date().getTime());
-            var fakeTipTarget = document.getElementById(id);
+            _id || (_id = "tipsyPvBehavior_" + new Date().getTime());
+            var fakeTipTarget = document.getElementById(_id);
             if (!fakeTipTarget) {
                 fakeTipTarget = document.createElement("div");
-                fakeTipTarget.id = id;
+                fakeTipTarget.id = _id;
                 c.appendChild(fakeTipTarget);
             }
             var fakeStyle = fakeTipTarget.style;
@@ -184,25 +204,31 @@
             $fakeTipTarget = $(fakeTipTarget);
             updateTipDebug();
             $fakeTipTarget.data("tipsy", null);
-            $fakeTipTarget.tipsy(opts);
+            var opts2 = Object.create(opts);
+            opts2.gravity = calculateGravity;
+            opts2.delayOut = 0;
+            opts2.trigger = "manual";
+            null == opts.animate && (opts.animate = opts.followMouse ? 0 : 400);
+            $fakeTipTarget[0].$tooltipOptions = mark.tooltipOptions;
+            $fakeTipTarget.tipsy(opts2);
         }
         function initTipsyCanvasSharedInfo() {
-            sharedTipsyInfo = $canvas.data("tipsy-pv-shared-info");
-            if (sharedTipsyInfo) {
+            _sharedTipsyInfo = $canvas.data("tipsy-pv-shared-info");
+            if (_sharedTipsyInfo) {
                 var createId = $canvas[0].$pvCreateId || 0;
-                if (sharedTipsyInfo.createId === createId) {
-                    sharedTipsyInfo.behaviors.push(hideTipsyOther);
+                if (_sharedTipsyInfo.createId === createId) {
+                    _sharedTipsyInfo.behaviors.push(hideTipsyOther);
                     return;
                 }
-                sharedTipsyInfo.behaviors.forEach(function(aHideTipsy) {
-                    aHideTipsy();
+                _sharedTipsyInfo.behaviors.forEach(function(hideTipsyFun) {
+                    hideTipsyFun();
                 });
             }
-            sharedTipsyInfo = {
+            _sharedTipsyInfo = {
                 createId: $canvas[0].$pvCreateId || 0,
                 behaviors: [ hideTipsyOther ]
             };
-            $canvas.data("tipsy-pv-shared-info", sharedTipsyInfo);
+            $canvas.data("tipsy-pv-shared-info", _sharedTipsyInfo);
         }
         function updateTipDebug() {
             $fakeTipTarget && $fakeTipTarget.css(_tip.debug >= 22 ? {
@@ -225,37 +251,87 @@
                 height: 20
             };
         }
-        function setTarget(targetElem, mark) {
-            if (!$targetElem && targetElem || $targetElem && $targetElem[0] !== targetElem) {
-                _tip.debug >= 20 && _tip.log("[TIPSY] #" + _tipsyId + " Changing target element.");
-                if ($targetElem) {
-                    $targetElem.unbind("mousemove", updateTipsy);
-                    usesPoint || $targetElem.unbind("mouseleave", hideTipsy);
+        function setMark(mark) {
+            mark || (mark = null);
+            var index, renderId, scenes;
+            if (mark !== _mark) {
+                _mark = mark;
+                if (mark) {
+                    _scenes = mark.scene;
+                    _index = getOwnerInstance(_scenes, _mark.index);
+                    _renderId = mark.renderId();
+                } else {
+                    _renderId = _scenes = _index = null;
+                    _tip.debug >= 20 && _tip.log("[TIPSY] #" + _tipsyId + " Cleared Mark");
                 }
-                $targetElem = targetElem ? $(targetElem) : null;
-                _mark = targetElem ? mark : null;
-                prevMouseX = prevMouseY = _renderId = null;
+            } else {
+                if (!mark) return !1;
+                if (_scenes !== (scenes = mark.scene)) {
+                    _scenes = scenes;
+                    _index = getOwnerInstance(_scenes, _mark.index);
+                    _renderId = mark.renderId();
+                } else if (_index !== (index = getOwnerInstance(_scenes, _mark.index))) {
+                    _index = index;
+                    _renderId = mark.renderId();
+                } else {
+                    if (_renderId === (renderId = mark.renderId())) return !1;
+                    _renderId = renderId;
+                }
+            }
+            $fakeTipTarget[0].$tooltipOptions = _mark && _mark.tooltipOptions;
+            mark && _tip.debug >= 20 && _tip.log("[TIPSY] #" + _tipsyId + " Set Mark State to " + mark.type + " scenes: #" + _scenes.length + " index: " + _index + " renderId: " + _renderId);
+            return !0;
+        }
+        function setTarget(targetElem, mark) {
+            targetElem && mark || (targetElem = mark = null);
+            var changedTargetElem = !$targetElem && targetElem || $targetElem && $targetElem[0] !== targetElem;
+            if (changedTargetElem) {
+                _tip.debug >= 20 && _tip.log("[TIPSY] #" + _tipsyId + " " + (targetElem ? "Changing target element " + targetElem.tagName + "." : "Clearing target element."));
+                if (changedTargetElem) {
+                    if ($targetElem) {
+                        $targetElem.unbind("mousemove", onTargetElemMouseMove);
+                        $targetElem.unbind("mouseleave", hideTipsy);
+                    }
+                    $targetElem = targetElem ? $(targetElem) : null;
+                }
+                setMark(mark);
                 if ($targetElem) {
-                    $targetElem.mousemove(updateTipsy);
-                    usesPoint || $targetElem.mouseleave(hideTipsy);
+                    $targetElem.mousemove(onTargetElemMouseMove);
+                    $targetElem.mouseleave(hideTipsy);
                 }
             }
         }
+        function getRealIndex(scene, index) {
+            var index0 = index;
+            if ("function" == typeof _mark.getNearestInstanceToMouse) {
+                index = _mark.getNearestInstanceToMouse(scene, index);
+                _tip.debug >= 20 && index0 !== index && _tip.log("[TIPSY] #" + _tipsyId + " Changing index " + index0 + " to Nearest index " + index);
+            }
+            return getOwnerInstance(scene, index);
+        }
+        function getOwnerInstance(scene, index) {
+            if ("function" == typeof _mark.getOwnerInstance) {
+                var index0 = index;
+                index = _mark.getOwnerInstance(scene, index);
+                _tip.debug >= 20 && index0 !== index && _tip.log("[TIPSY] #" + _tipsyId + " Changing index " + index0 + " to Owner index " + index);
+            }
+            return index;
+        }
         function getNewOperationId() {
-            return nextOperationId++;
+            return _nextOperId++;
         }
         function checkCanOperate(opId) {
-            return opId === nextOperationId - 1;
+            return opId === _nextOperId - 1;
         }
         function hideTipsy() {
             var opId = getNewOperationId();
             _tip.debug >= 20 && _tip.log("[TIPSY] #" + _tipsyId + " Delayed Hide Begin opId=" + opId);
-            if (delayOut > 0) window.setTimeout(function() {
+            if (_delayOut > 0) window.setTimeout(function() {
                 if (checkCanOperate(opId)) {
-                    _tip.debug >= 20 && _tip.log("[TIPSY] #" + _tipsyId + " Hiding opId=" + opId + " nextOperationId=" + nextOperationId);
+                    _tip.debug >= 20 && _tip.log("[TIPSY] #" + _tipsyId + " Hiding opId=" + opId);
                     hideTipsyCore(opId);
                 } else _tip.debug >= 20 && _tip.log("[TIPSY] #" + _tipsyId + " Delayed Hide Cancelled opId=" + opId);
-            }, delayOut); else {
+            }, _delayOut); else {
                 _tip.debug >= 20 && _tip.log("[TIPSY] #" + _tipsyId + " Hiding Immediately opId=" + opId);
                 hideTipsyCore(opId);
             }
@@ -267,32 +343,70 @@
         }
         function hideTipsyCore() {
             setTarget(null, null);
+            setMark(null);
             $fakeTipTarget && $fakeTipTarget.tipsy("leave");
         }
         function hideOtherTipsies() {
-            var hideTipsies = sharedTipsyInfo && sharedTipsyInfo.behaviors;
-            hideTipsies && hideTipsies.length > 1 && hideTipsies.forEach(function(aHideTipsy) {
-                aHideTipsy !== hideTipsyOther && aHideTipsy();
-            });
+            var hideTipsies = _sharedTipsyInfo && _sharedTipsyInfo.behaviors;
+            if (hideTipsies && hideTipsies.length > 1) {
+                _tip.debug >= 20 && _tip.group("[TIPSY] #" + _tipsyId + " Hiding Others");
+                hideTipsies.forEach(function(hideTipsyFun) {
+                    hideTipsyFun !== hideTipsyOther && hideTipsyFun();
+                });
+                _tip.debug >= 20 && _tip.groupEnd();
+            }
         }
-        function updateTipsy(ev) {
-            if ($fakeTipTarget && !(null != prevMouseX && Math.abs(ev.clientX - prevMouseX) < 3 && Math.abs(ev.clientY - prevMouseY) < 3)) {
+        function isRealMouseMove(ev) {
+            _mousePage = new pv.Shape.Point(ev.pageX, ev.pageY);
+            if (_prevMousePage && _mousePage.distance2(_prevMousePage).cost <= 8) {
+                _tip.debug >= 20 && _tip.log("[TIPSY] #" + _tipsyId + " mousemove too close");
+                return !1;
+            }
+            return !0;
+        }
+        function doFollowMouse() {
+            _tip.debug >= 20 && _tip.group("[TIPSY] #" + _tipsyId + " doFollowMouse");
+            var ev = pv.event;
+            if (!_mark || _isEnabledFun && !_isEnabledFun(tipsyBehavior, _mark)) {
+                hideTipsy();
+                _tip.debug >= 20 && _tip.groupEnd();
+            } else {
+                if ($fakeTipTarget && _mark && isRealMouseMove(ev)) {
+                    _prevMousePage = _mousePage;
+                    setFakeTipTargetBounds(getMouseBounds(ev));
+                    hideOtherTipsies();
+                    $fakeTipTarget.tipsy("update");
+                }
+                _tip.debug >= 20 && _tip.groupEnd();
+            }
+        }
+        function onTargetElemMouseMove(ev) {
+            if ($fakeTipTarget && isRealMouseMove(ev)) {
                 var scenes, tag = this.$scene;
                 if (tag && (scenes = tag.scenes) && scenes.mark && scenes.mark === _mark) {
-                    var renderId = _mark.renderId(), renderIdChanged = renderId !== _renderId, followMouse = opts.followMouse;
-                    if (followMouse || renderIdChanged) {
+                    var renderId = _mark.renderId(), sceneChanged = renderId !== _renderId || scenes !== _scenes, followMouse = opts.followMouse, index = tag.index;
+                    if ("function" == typeof _mark.getOwnerInstance || "function" == typeof _mark.getNearestInstanceToMouse) {
+                        pv.event = ev;
+                        _mark.context(scenes, index, function() {
+                            index = getRealIndex(scenes, index);
+                        });
+                        pv.event = null;
+                    }
+                    sceneChanged |= index !== _index;
+                    if (followMouse || sceneChanged) {
                         var opId = getNewOperationId();
                         _tip.debug >= 20 && _tip.log("[TIPSY] #" + _tipsyId + " Updating opId=" + opId);
-                        prevMouseX = ev.clientX;
-                        prevMouseY = ev.clientY;
+                        _prevMousePage = _mousePage;
                         var bounds;
                         followMouse && (bounds = getMouseBounds(ev));
-                        if (renderIdChanged) {
+                        if (sceneChanged) {
                             _renderId = renderId;
-                            _mark.context(scenes, tag.index, function() {
+                            _scenes = scenes;
+                            _index = index;
+                            _mark.context(scenes, index, function() {
                                 followMouse || (bounds = getInstanceBounds());
                                 var text = getTooltipText();
-                                _tip.debug >= 20 && _tip.log("[TIPSY] #" + _tipsyId + " Update text. Was hidden. Text: " + text);
+                                _tip.debug >= 20 && _tip.log("[TIPSY] #" + _tipsyId + " Update text. Was hidden. Text: " + text.substr(0, 50));
                                 $fakeTipTarget.tipsy("setTitle", text);
                                 updateUserGravity();
                             });
@@ -300,46 +414,49 @@
                         setFakeTipTargetBounds(bounds);
                         hideOtherTipsies();
                         $fakeTipTarget.tipsy("update");
-                    }
-                }
+                    } else _tip.debug >= 20 && _tip.log("[TIPSY] #" + _tipsyId + " !followMouse and same scene");
+                } else _tip.debug >= 20 && _tip.log("[TIPSY] #" + _tipsyId + " mousemove on != mark");
             }
         }
-        function initBehavior(mark) {
-            _tip.debug >= 20 && _tip.log("[TIPSY] #" + _tipsyId + " Creating");
-            createTipsy(mark);
-            usesPoint && mark.event("unpoint", hideTipsy);
+        function initMark(mark) {
+            $canvas || createTipsy(mark);
+            if (mark._tipsy !== tipsyBehavior) {
+                _tip.debug >= 20 && _tip.log("[TIPSY] #" + _tipsyId + " Initializing mark");
+                mark._tipsy = tipsyBehavior;
+                opts.usesPoint && mark.event("unpoint", function() {
+                    _tip.debug >= 20 && _tip.group("[TIPSY] #" + _tipsyId + " unpoint");
+                    hideTipsy();
+                    _tip.debug >= 20 && _tip.groupEnd();
+                });
+            }
         }
         function showTipsy(mark) {
+            function updateTextAndBounds() {
+                var text = getTooltipText();
+                _tip.debug >= 20 && _tip.log("[TIPSY] #" + _tipsyId + " Set Text: " + text.substr(0, 50));
+                $fakeTipTarget.tipsy("setTitle", text);
+                setFakeTipTargetBounds(opts.followMouse ? getMouseBounds() : getInstanceBounds());
+                updateUserGravity();
+            }
             var opId = getNewOperationId();
-            _tip.debug >= 20 && _tip.log("[TIPSY] #" + _tipsyId + " Show IN opId=" + opId);
-            $canvas || initBehavior(mark);
-            var isHidden = !$targetElem;
-            setTarget(pv.event.target, mark);
-            var text = getTooltipText();
-            _tip.debug >= 20 && _tip.log("[TIPSY] #" + _tipsyId + " Text: " + text);
-            $fakeTipTarget.tipsy("setTitle", text);
-            setFakeTipTargetBounds(opts.followMouse ? getMouseBounds() : getInstanceBounds());
-            updateUserGravity();
+            _tip.debug >= 20 && _tip.group("[TIPSY] #" + _tipsyId + " ShowTipsy opId=" + opId);
+            initMark(mark);
+            var isHidden = !_mark;
+            opts.usesPoint ? setMark(mark) : setTarget(pv.event.target, mark);
+            var ev = pv.event;
+            isRealMouseMove(ev);
+            _prevMousePage = _mousePage;
+            mark.index !== _index ? mark.context(_scenes, _index, updateTextAndBounds) : updateTextAndBounds();
             hideOtherTipsies();
             $fakeTipTarget.tipsy(isHidden ? "enter" : "update");
-            _tip.debug >= 20 && _tip.log("[TIPSY] #" + _tipsyId + " Show OUT");
+            _tip.debug >= 20 && _tip.groupEnd();
         }
         function tipsyBehavior() {
             var mark = this;
-            (!isEnabled || isEnabled(tipsyBehavior, mark)) && showTipsy(mark);
+            (!_isEnabledFun || _isEnabledFun(tipsyBehavior, mark)) && showTipsy(mark);
         }
-        var _tipsyId = _nextTipsyId++;
-        opts = opts ? Object.create(opts) : {};
-        opts.trigger = "manual";
-        var _userGravityFun, _userGravity = opts.gravity || $.fn.tipsy.defaults.gravity;
-        if ("function" == typeof _userGravity) {
-            _userGravityFun = _userGravity;
-            _userGravity = null;
-        }
-        opts.gravity = calculateGravity;
-        var $fakeTipTarget, $targetElem, prevMouseX, prevMouseY, _renderId, _mark, id, $canvas, sharedTipsyInfo, nextOperationId = 0, delayOut = opts.delayOut, usesPoint = opts.usesPoint, isEnabled = opts.isEnabled;
-        opts.delayOut = 0;
-        var _gravities = [ "nw", "n", "ne", "e", "se", "s", "sw", "w" ];
+        opts || (opts = {});
+        var $fakeTipTarget, _prevMousePage, _mousePage, _userGravity, _renderId, _index, _scenes, _id, $canvas, _sharedTipsyInfo, $targetElem = null, _tipsyId = _nextTipsyId++, _nextOperId = 0, _mark = null, _delayOut = opts.delayOut, _isEnabledFun = opts.isEnabled, _gravities = [ "nw", "n", "ne", "e", "se", "s", "sw", "w" ];
         return tipsyBehavior;
     };
     var _tip = pv.Behavior.tipsy;
@@ -349,5 +466,11 @@
     };
     _tip.log = function(m) {
         "undefined" != typeof console && console.log("" + m);
+    };
+    _tip.group = function(m) {
+        "undefined" != typeof console && console.group("" + m);
+    };
+    _tip.groupEnd = function() {
+        "undefined" != typeof console && console.groupEnd();
     };
 }();

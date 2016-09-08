@@ -1,0 +1,64 @@
+/* Copyright (C) OSBI Ltd - All Rights Reserved
+ * Unauthorized copying of this file, via any medium is strictly prohibited
+ * Proprietary and confidential
+ * Written by Breno Polanski, 2015
+ */
+
+/* Temporary style code. Migrate to styles.css in Saiku version 4.0. */
+
+/* Event button */
+
+.chart > li[disabled="disabled"] a.export_button,
+.chart > li[disabled="disabled"] a.export_button span.dropdown,
+.chart > li#charteditor[disabled="disabled"] a {
+	color: #ccc;
+	cursor: not-allowed;
+}
+
+/* Dialog */
+
+.dialog_map-editor .dialog_icon {
+    width: 50px;
+    margin: 10px;
+    background: url("dialog_map_editor.png") no-repeat;
+}
+
+.dialog_map-editor.ui-dialog-content { 
+    overflow: visible !important;
+}
+
+.dialog_map-editor .dialog_body {
+    overflow: inherit !important;
+}
+
+/* Form Group */
+
+.dialog_map-editor .form-group {
+    float: left;
+}
+
+.dialog_map-editor .form-group label {
+    display: block;
+    padding-top: 10px;
+}
+
+.dialog_map-editor .form-group input[type="text"] {
+    display: block;
+    padding: 4px;
+    width: 262px;
+}
+
+.dialog_map-editor .form-group .chosen-container {
+    width: 357px !important;
+}
+
+.dialog_map-editor .form-group .chosen-search input {
+    width: 100% !important;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    box-sizing: border-box;
+}
+
+.dialog_map-editor .form-group .chosen-mb {
+    margin-bottom: 30px;
+}
