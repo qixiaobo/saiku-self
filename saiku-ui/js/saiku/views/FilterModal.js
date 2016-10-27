@@ -52,6 +52,7 @@ var FilterModal = Modal.extend({
     expression: " ",
     expressonType: "",
 
+
     initialize: function(args) {
         var self = this;
         this.id = _.uniqueId('filter-modal-');
@@ -78,9 +79,13 @@ var FilterModal = Modal.extend({
             this.editor.setFontSize(11);
         });
 
+
+
+
+
         // fix event listening in IE < 9
         if(isIE && isIE < 9) {
-            $(this.el).find('form').on('submit', this.save);
+			$(this.el).find('form').on('submit', this.save);
         }
 
     },
@@ -102,10 +107,10 @@ var FilterModal = Modal.extend({
             } else {
                 self.success(this.expression);
             }
-            this.close();
+			this.close();
         }
 
-        return false;
+		return false;
     },
 
     error: function() {
