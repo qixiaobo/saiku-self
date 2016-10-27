@@ -140,7 +140,15 @@ var Query = Backbone.Model.extend({
         TODO: i wonder if we should clean up the model (name and captions etc.)
         delete this.model.queryModel.axes['FILTER'].name;
 */
-        this.result.save({},{ contentType: "application/json", data: JSON.stringify(exModel), error: function() {
+		var data = JSON.stringify(exModel)
+
+		for (var param in exModel.parameters) {
+			data = data.replace(new RegExp("\\$\\{" + param + "}", "gm"), exModel.parameters[param])
+		}
+
+
+		this.result.save({}, {
+			contentType: "application/json", data: data, error: function () {
             Saiku.ui.unblock();
             var errorMessage = '<span class="i18n">Error executing query. Please check the server logs or contact your administrator!</span>';
             self.workspace.table.clearOut();

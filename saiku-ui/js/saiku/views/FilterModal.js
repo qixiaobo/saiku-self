@@ -1,4 +1,4 @@
-/*  
+/*
  *   Copyright 2012 OSBI Ltd
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,7 +13,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
- 
+
 /**
  * The "add a folder" dialog
  */
@@ -51,7 +51,7 @@ var FilterModal = Modal.extend({
 
     expression: " ",
     expressonType: "",
-    
+
 
     initialize: function(args) {
         var self = this;
@@ -80,12 +80,9 @@ var FilterModal = Modal.extend({
         });
 
 
-        
-
-        
-        // fix event listening in IE < 9
+		// fix event listening in IE < 9
         if(isIE && isIE < 9) {
-            $(this.el).find('form').on('submit', this.save);    
+			$(this.el).find('form').on('submit', this.save);
         }
 
     },
@@ -94,7 +91,7 @@ var FilterModal = Modal.extend({
     save: function( event ) {
         event.preventDefault( );
         var self = this;
-        this.expression = $(this.el).find('textarea').val();
+		this.expression = $(this.el).find('.ace_line').text();
 
         var alert_msg = "";
         if (typeof this.expression == "undefined" || !this.expression || this.expression === "") {
@@ -107,10 +104,10 @@ var FilterModal = Modal.extend({
             } else {
                 self.success(this.expression);
             }
-            this.close();    
+			this.close();
         }
-        
-        return false;
+
+		return false;
     },
 
     error: function() {
