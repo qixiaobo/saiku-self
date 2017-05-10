@@ -120,10 +120,6 @@
             </snapshots>
         </repository>
 
-    	<repository>
-    		<id>pentaho-releases</id>
-    		<url>http://repository.pentaho.org/artifactory/repo/</url>
-    	</repository>
 
         <repository>
             <id>miredot</id>
